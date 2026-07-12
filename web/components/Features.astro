@@ -1,0 +1,39 @@
+---
+const features = [
+  {
+    icon: "🔒",
+    title: "Secreto Tributario Garantizado",
+    desc: "RUTs, CIs y montos son anonimizados automáticamente antes de llegar a los modelos. Cumplimiento con Art. 47 Cód. Tributario y URCDP.",
+  },
+  {
+    icon: "📚",
+    title: "Contextual RAG sobre Normativa",
+    desc: "Cada respuesta está fundamentada en fragmentos reales del corpus legislativo uruguayo (T.O. DGI, Decretos, Instructivos BPS) con enlace verificable.",
+  },
+  {
+    icon: "⚡",
+    title: "Edge Inference Ultrarápida",
+    desc: "Inferencia local en la red global de Cloudflare. Sin latencia intercontinental. Escala automáticamente para estudios contables y consultoras.",
+  },
+  {
+    icon: "🔍",
+    title: "Búsqueda Híbrida Semántica + Léxica",
+    desc: "Combina vectores semánticos (Vectorize) y búsqueda de texto FTS5 (D1 SQLite) para recuperar el contexto legal más preciso.",
+  },
+];
+---
+<section class="py-16 bg-white">
+  <div class="max-w-5xl mx-auto px-6">
+    <h2 class="text-2xl font-bold text-slate-800 text-center mb-3">Funcionalidades principales</h2>
+    <p class="text-slate-500 text-center text-sm mb-10">Construido sobre el stack moderno de Cloudflare.</p>
+    <div class="grid sm:grid-cols-2 gap-6">
+      {features.map((f) => (
+        <div class="bg-slate-50 rounded-xl p-6 border border-slate-200 flex flex-col gap-3">
+          <span class="text-3xl">{f.icon}</span>
+          <h3 class="font-semibold text-slate-800">{f.title}</h3>
+          <p class="text-sm text-slate-600 leading-relaxed">{f.desc}</p>
+        </div>
+      ))}
+    </div>
+  </div>
+</section>

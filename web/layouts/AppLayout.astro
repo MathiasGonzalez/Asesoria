@@ -1,0 +1,52 @@
+---
+interface Props {
+  title: string;
+}
+const { title } = Astro.props;
+---
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{title} — Asesoría DGI/BPS</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <script src="https://cdn.tailwindcss.com"></script>
+  </head>
+  <body class="bg-slate-100 text-slate-800 antialiased">
+    <nav class="bg-white border-b border-slate-200 px-6 py-3 flex items-center justify-between sticky top-0 z-10 shadow-sm">
+      <a href="/" class="font-bold text-blue-600 text-lg tracking-tight">Asesoría DGI/BPS</a>
+      <div class="flex items-center gap-4">
+        <span id="user-indicator" class="text-xs text-slate-500 hidden">Sesión activa</span>
+        <button
+          id="logout-btn"
+          class="hidden text-xs text-red-600 hover:text-red-800 font-medium transition-colors"
+        >
+          Cerrar sesión
+        </button>
+      </div>
+    </nav>
+    <main class="max-w-4xl mx-auto px-6 py-8 flex flex-col gap-6">
+      <slot />
+    </main>
+
+    <script>
+      // Auth guard: redirect to landing if no token is present
+      const token = localStorage.getItem("uy_tax_token");
+      if (!token) {
+        window.location.href = "/?login=required";
+      }
+
+      const indicator = document.getElementById("user-indicator");
+      const logoutBtn = document.getElementById("logout-btn");
+      if (indicator) indicator.classList.remove("hidden");
+      if (logoutBtn) {
+        logoutBtn.classList.remove("hidden");
+        logoutBtn.addEventListener("click", () => {
+          localStorage.removeItem("uy_tax_token");
+          window.location.href = "/";
+        });
+      }
+    </script>
+  </body>
+</html>

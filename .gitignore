@@ -3,6 +3,20 @@
 ##
 ## Get latest from https://github.com/github/gitignore/blob/main/VisualStudio.gitignore
 
+# Cloudflare / Wrangler
+.wrangler/
+
+# Astro build output
+dist/
+.astro/
+build/
+
+# Node
+node_modules/
+
+# Environment variables
+.dev.vars
+
 # User-specific files
 *.rsuser
 *.suo
