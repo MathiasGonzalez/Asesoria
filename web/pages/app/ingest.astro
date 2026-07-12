@@ -1,0 +1,154 @@
+---
+import AppLayout from "../../layouts/AppLayout.astro";
+---
+
+<AppLayout title="Administrar Documentos">
+  <div class="flex flex-col gap-2">
+    <h1 class="text-xl font-bold text-slate-800">Ingestión de Documentos Normativos</h1>
+    <p class="text-sm text-slate-500">
+      Incorporá documentos oficiales (T.O. DGI, Decretos, Instructivos BPS) al corpus del asistente.
+      El sistema fragmenta, contextualiza y vectoriza cada documento automáticamente.
+    </p>
+  </div>
+
+  <div class="bg-white rounded-xl border border-slate-200 p-6 shadow-sm flex flex-col gap-5">
+    <div id="ingest-alert" class="hidden text-xs rounded-lg p-3 border"></div>
+
+    <form id="ingest-form" class="flex flex-col gap-4">
+      <div class="grid sm:grid-cols-2 gap-4">
+        <div class="flex flex-col gap-1">
+          <label for="doc-id" class="text-xs font-medium text-slate-600">ID del documento</label>
+          <input
+            type="text"
+            id="doc-id"
+            placeholder="Ej: to-dgi-96-titulo1"
+            class="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            required
+          />
+        </div>
+        <div class="flex flex-col gap-1">
+          <label for="doc-source" class="text-xs font-medium text-slate-600">Fuente</label>
+          <select
+            id="doc-source"
+            class="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="DGI">DGI</option>
+            <option value="BPS">BPS</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="flex flex-col gap-1">
+        <label for="doc-title" class="text-xs font-medium text-slate-600">Título</label>
+        <input
+          type="text"
+          id="doc-title"
+          placeholder="Ej: T.O. DGI 1996 — Título 1: IRAE"
+          class="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          required
+        />
+      </div>
+
+      <div class="flex flex-col gap-1">
+        <label for="doc-url" class="text-xs font-medium text-slate-600">URL de fuente oficial (opcional)</label>
+        <input
+          type="url"
+          id="doc-url"
+          placeholder="https://www.dgi.gub.uy/..."
+          class="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
+      </div>
+
+      <div class="flex flex-col gap-1">
+        <label for="doc-content" class="text-xs font-medium text-slate-600">Contenido del documento</label>
+        <textarea
+          id="doc-content"
+          rows="8"
+          placeholder="Pegá el texto completo del documento normativo aquí…"
+          class="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y"
+          required
+        ></textarea>
+        <p class="text-xs text-slate-400">El sistema divide automáticamente el texto en fragmentos de 500 caracteres y genera contexto con IA.</p>
+      </div>
+
+      <button
+        type="submit"
+        id="ingest-btn"
+        class="self-start bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg px-6 py-2 text-sm transition-colors"
+      >
+        Ingestar documento
+      </button>
+    </form>
+  </div>
+
+  <div class="flex gap-4 text-xs text-slate-500">
+    <a href="/app" class="hover:text-blue-600 transition-colors underline underline-offset-2">
+      ← Volver al asistente
+    </a>
+  </div>
+</AppLayout>
+
+<script>
+  const form     = document.getElementById("ingest-form") as HTMLFormElement | null;
+  const btn      = document.getElementById("ingest-btn") as HTMLButtonElement | null;
+  const alertDiv = document.getElementById("ingest-alert") as HTMLDivElement | null;
+
+  function showAlert(message: string, type: "success" | "error") {
+    if (!alertDiv) return;
+    alertDiv.innerText = message;
+    alertDiv.classList.remove(
+      "hidden",
+      "bg-green-50", "text-green-800", "border-green-200",
+      "bg-red-50",   "text-red-800",   "border-red-200"
+    );
+    if (type === "success") {
+      alertDiv.classList.add("bg-green-50", "text-green-800", "border-green-200");
+    } else {
+      alertDiv.classList.add("bg-red-50", "text-red-800", "border-red-200");
+    }
+  }
+
+  form?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    if (btn) { btn.disabled = true; btn.textContent = "Ingentando…"; }
+
+    const session = localStorage.getItem("adviser_session") ?? "";
+
+    const payload = {
+      id:      (document.getElementById("doc-id") as HTMLInputElement).value.trim(),
+      title:   (document.getElementById("doc-title") as HTMLInputElement).value.trim(),
+      source:  (document.getElementById("doc-source") as HTMLSelectElement).value,
+      content: (document.getElementById("doc-content") as HTMLTextAreaElement).value.trim(),
+      url:     (document.getElementById("doc-url") as HTMLInputElement).value.trim() || undefined,
+    };
+
+    try {
+      const res = await fetch("/api/ingest", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: "Bearer " + session,
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (res.status === 401) {
+        localStorage.removeItem("adviser_session");
+        window.location.replace("/login?login=expired");
+        return;
+      }
+
+      const data = await res.json() as { success?: boolean; message?: string; error?: string };
+      if (res.ok && data.success) {
+        showAlert(`✓ ${data.message}`, "success");
+        form?.reset();
+      } else {
+        showAlert(`Error: ${data.error ?? "Respuesta inesperada del servidor."}`, "error");
+      }
+    } catch {
+      showAlert("Error de red al conectar con el servidor.", "error");
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = "Ingestar documento"; }
+    }
+  });
+</script>

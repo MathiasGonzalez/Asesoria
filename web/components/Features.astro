@@ -1,0 +1,76 @@
+---
+const features = [
+  {
+    icon: `<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>`,
+    color: "text-blue-600 bg-blue-100",
+    title: "Secreto Tributario Garantizado",
+    desc: "RUTs, CIs y montos son anonimizados automáticamente antes de llegar a los modelos. Cumplimiento con Art. 47 Cód. Tributario y URCDP Ley 18.331.",
+    badge: "Art. 47 Compliance",
+  },
+  {
+    icon: `<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>`,
+    color: "text-indigo-600 bg-indigo-100",
+    title: "Contextual RAG sobre Normativa",
+    desc: "Cada respuesta está fundamentada en fragmentos reales del corpus legislativo uruguayo (T.O. DGI, Decretos, Instructivos BPS) con enlace verificable.",
+    badge: "Grounded AI",
+  },
+  {
+    icon: `<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>`,
+    color: "text-purple-600 bg-purple-100",
+    title: "Búsqueda Híbrida Semántica + Léxica",
+    desc: "Combina vectores semánticos (Vectorize) y búsqueda de texto FTS5 (D1 SQLite) para recuperar el contexto legal más preciso en cada consulta.",
+    badge: "Vectorize + FTS5",
+  },
+  {
+    icon: `<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>`,
+    color: "text-orange-600 bg-orange-100",
+    title: "Edge Inference Ultrarápida",
+    desc: "Inferencia en la red global de Cloudflare sin latencia intercontinental. Escala automáticamente para estudios contables y consultoras.",
+    badge: "Workers AI",
+  },
+  {
+    icon: `<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>`,
+    color: "text-cyan-600 bg-cyan-100",
+    title: "Autenticación OTP sin Contraseñas",
+    desc: "Login con código de un solo uso enviado al email. El primer acceso crea automáticamente una cuenta y un tenant para tu organización.",
+    badge: "Passwordless",
+  },
+  {
+    icon: `<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-2 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>`,
+    color: "text-emerald-600 bg-emerald-100",
+    title: "Multi-tenant por Organización",
+    desc: "Cada estudio contable o empresa opera en su propio tenant aislado. Feature flags configurables por organización para activar funcionalidades gradualmente.",
+    badge: "Multi-tenant",
+  },
+];
+---
+<section class="py-20 bg-white">
+  <div class="max-w-6xl mx-auto px-6">
+    <!-- Section header -->
+    <div class="text-center mb-14">
+      <span class="inline-block text-xs font-semibold text-blue-600 bg-blue-50 px-3 py-1.5 rounded-full mb-4 uppercase tracking-wider">
+        Plataforma completa
+      </span>
+      <h2 class="text-3xl sm:text-4xl font-bold text-slate-900 mb-4">Funcionalidades principales</h2>
+      <p class="text-slate-500 text-lg max-w-2xl mx-auto">
+        Construido sobre el stack moderno de Cloudflare con cumplimiento legal uruguayo integrado desde el diseño.
+      </p>
+    </div>
+
+    <!-- Feature grid -->
+    <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+      {features.map((f) => (
+        <div class="group relative bg-white rounded-2xl p-6 border border-slate-200 hover:border-slate-300 hover:shadow-lg transition-all flex flex-col gap-4">
+          <div class="flex items-start justify-between">
+            <div class={`w-12 h-12 rounded-xl flex items-center justify-center ${f.color}`} set:html={f.icon} />
+            <span class="text-xs font-medium text-slate-500 bg-slate-100 px-2 py-1 rounded-full">{f.badge}</span>
+          </div>
+          <div>
+            <h3 class="font-bold text-slate-900 text-base mb-2">{f.title}</h3>
+            <p class="text-sm text-slate-500 leading-relaxed">{f.desc}</p>
+          </div>
+        </div>
+      ))}
+    </div>
+  </div>
+</section>

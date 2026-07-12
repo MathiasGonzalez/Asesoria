@@ -1,0 +1,125 @@
+---
+import AppLayout from "../../layouts/AppLayout.astro";
+---
+
+<AppLayout title="Asistente de Consultas">
+  <div class="flex flex-col gap-2">
+    <h1 class="text-xl font-bold text-slate-800">Asistente Regulatorio DGI / BPS</h1>
+    <p class="text-sm text-slate-500">
+      Consultá normativa tributaria y de seguridad social en Uruguay. Los datos sensibles son
+      anonimizados automáticamente antes del procesamiento.
+    </p>
+  </div>
+
+  <!-- Search form -->
+  <div class="bg-white rounded-xl border border-slate-200 p-6 shadow-sm flex flex-col gap-4">
+    <form id="search-form" class="flex gap-2">
+      <input
+        type="text"
+        id="query-input"
+        placeholder="Ej: ¿Qué plazo tiene una auditoría fiscal de DGI?"
+        class="flex-grow rounded-lg border border-slate-300 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+        required
+      />
+      <button
+        type="submit"
+        id="submit-btn"
+        class="bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg px-5 py-2 text-sm transition-colors whitespace-nowrap"
+      >
+        Consultar
+      </button>
+    </form>
+    <p class="text-xs text-slate-400">
+      🔒 Tu consulta es anonimizada antes de ser procesada. No se envían CIs, RUTs ni montos al modelo.
+    </p>
+  </div>
+
+  <!-- Loading -->
+  <div id="loading" class="hidden text-center py-10 flex flex-col items-center gap-3">
+    <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+    <p class="text-sm text-slate-500">Analizando normativa y validando secreto tributario…</p>
+  </div>
+
+  <!-- Results -->
+  <div id="results-card" class="hidden bg-white rounded-xl border border-slate-200 p-6 shadow-sm flex flex-col gap-4">
+    <div class="flex justify-between items-center border-b border-slate-100 pb-3">
+      <h2 class="font-semibold text-slate-800">Respuesta del Asistente</h2>
+      <span id="latency-tag" class="text-xs text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full"></span>
+    </div>
+    <div
+      id="sanitized-alert"
+      class="hidden text-xs bg-amber-50 text-amber-800 rounded-lg p-3 border border-amber-200"
+    ></div>
+    <div id="answer-content" class="text-sm text-slate-700 leading-relaxed whitespace-pre-line"></div>
+  </div>
+
+  <!-- Nav links -->
+  <div class="flex gap-4 text-xs text-slate-500">
+    <a href="/app/ingest" class="hover:text-blue-600 transition-colors underline underline-offset-2">
+      Administrar documentos →
+    </a>
+  </div>
+</AppLayout>
+
+<script>
+  const form        = document.getElementById("search-form") as HTMLFormElement | null;
+  const loading     = document.getElementById("loading") as HTMLDivElement | null;
+  const resultsCard = document.getElementById("results-card") as HTMLDivElement | null;
+  const alertDiv    = document.getElementById("sanitized-alert") as HTMLDivElement | null;
+  const answerEl    = document.getElementById("answer-content") as HTMLDivElement | null;
+  const latencyTag  = document.getElementById("latency-tag") as HTMLSpanElement | null;
+  const submitBtn   = document.getElementById("submit-btn") as HTMLButtonElement | null;
+
+  form?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const input = document.getElementById("query-input") as HTMLInputElement;
+    if (!input.value.trim()) return;
+
+    loading?.classList.remove("hidden");
+    resultsCard?.classList.add("hidden");
+    alertDiv?.classList.add("hidden");
+    if (submitBtn) submitBtn.disabled = true;
+
+    try {
+      const session = localStorage.getItem("adviser_session") ?? "";
+      const response = await fetch(`/api/search?q=${encodeURIComponent(input.value.trim())}`, {
+        headers: { Authorization: "Bearer " + session },
+      });
+
+      if (response.status === 401) {
+        localStorage.removeItem("adviser_session");
+        window.location.replace("/login?login=expired");
+        return;
+      }
+
+      const data = await response.json() as {
+        latencyMs: number;
+        sanitizedQuery: string;
+        originalQuery: string;
+        response: string;
+        error?: string;
+      };
+
+      if (!response.ok) {
+        if (answerEl) answerEl.innerText = data.error ?? "Error procesando la consulta.";
+        resultsCard?.classList.remove("hidden");
+        return;
+      }
+
+      if (latencyTag) latencyTag.innerText = `${data.latencyMs}ms`;
+      if (alertDiv && data.sanitizedQuery !== data.originalQuery) {
+        alertDiv.innerText = `Consulta anonimizada: "${data.sanitizedQuery}"`;
+        alertDiv.classList.remove("hidden");
+      }
+      if (answerEl) answerEl.innerText = data.response;
+      resultsCard?.classList.remove("hidden");
+
+    } catch {
+      if (answerEl) answerEl.innerText = "Error procesando la consulta. Intentá nuevamente.";
+      resultsCard?.classList.remove("hidden");
+    } finally {
+      loading?.classList.add("hidden");
+      if (submitBtn) submitBtn.disabled = false;
+    }
+  });
+</script>

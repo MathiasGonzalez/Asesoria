@@ -1,0 +1,88 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "adviser",
+  "main": "src/index.ts",
+  "compatibility_date": "2025-01-01",
+
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS"
+  },
+
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "uy_tax_db",
+      "database_id": "REPLACE_WITH_D1_DATABASE_ID",
+      "migrations_dir": "./migrations"
+    }
+  ],
+
+  "vectorize": [
+    {
+      "binding": "VECTORIZE",
+      "index_name": "uy-tax-index"
+    }
+  ],
+
+  "ai": {
+    "binding": "AI"
+  },
+
+  // Workers Rate Limiting – 20 requests per IP per 60 seconds
+  // Run: no extra setup needed; the namespace_id is a local label.
+  "rate_limiting": [
+    {
+      "binding": "RATE_LIMITER",
+      "namespace_id": 1001,
+      "simple": {
+        "limit": 20,
+        "period": 60
+      }
+    }
+  ],
+
+  // Secrets (set via `wrangler secret put <NAME>`):
+  //   EMAIL_API_KEY  – Resend API key (re:...key...)
+  //   EMAIL_FROM     – Verified sender address, e.g. "noreply@yourdomain.com"
+
+  // -------------------------------------------------------------------------
+  // Develop environment – separate Worker + D1 + Vectorize index
+  // -------------------------------------------------------------------------
+  "env": {
+    "develop": {
+      "name": "adviser-develop",
+
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "uy_tax_db_develop",
+          "database_id": "REPLACE_WITH_DEVELOP_D1_DATABASE_ID",
+          "migrations_dir": "./migrations"
+        }
+      ],
+
+      "vectorize": [
+        {
+          "binding": "VECTORIZE",
+          "index_name": "uy-tax-index-develop"
+        }
+      ],
+
+      "rate_limiting": [
+        {
+          "binding": "RATE_LIMITER",
+          "namespace_id": 1002,
+          "simple": {
+            "limit": 20,
+            "period": 60
+          }
+        }
+      ]
+
+      // Secrets for develop are set with:
+      //   wrangler secret put EMAIL_API_KEY --env develop
+      //   wrangler secret put EMAIL_FROM    --env develop
+    }
+  }
+}

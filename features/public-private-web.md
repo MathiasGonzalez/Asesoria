@@ -1,0 +1,67 @@
+# Feature: Public/Private Web Split (Separación Landing / Producto)
+
+## Descripción
+
+La aplicación web (construida con **Astro** en modo estático) se divide en dos secciones con acceso diferenciado:
+
+- **Sección pública** (`/`): landing page informativa, accesible a cualquier visitante.
+- **Sección privada** (`/app/*`): producto de asesoría real, protegida con un token de acceso almacenado en `localStorage`.
+
+## Casos de uso
+
+- **UC-021** Un visitante accede a `/` y ve la landing page con descripción del producto, funcionalidades y CTA para solicitar acceso.
+- **UC-022** Un usuario con token válido accede a `/app` y visualiza el asistente de consultas regulatorias.
+- **UC-023** Un usuario sin token intenta acceder a `/app` directamente — la página redirige a `/` con un parámetro `?login=required`.
+- **UC-024** Un administrador con token accede a `/app/ingest` para cargar nuevos documentos normativos al corpus.
+- **UC-025** El usuario puede cerrar sesión (logout) eliminando el token de `localStorage` desde el menú de la app.
+
+## Estructura de rutas
+
+### Rutas públicas
+| Ruta | Descripción |
+|------|-------------|
+| `/` | Landing page: hero, features, CTA |
+
+### Rutas privadas (requieren token)
+| Ruta | Descripción |
+|------|-------------|
+| `/app` | Interfaz principal de consulta (búsqueda RAG) |
+| `/app/ingest` | Panel de administración para ingestión de documentos |
+
+## Mecanismo de autenticación (MVP)
+
+La guardia de acceso es del lado del cliente (client-side guard):
+
+1. En cada página privada, un script inline verifica `localStorage.getItem("uy_tax_token")`.
+2. Si el token no existe, redirige a `/?login=required`.
+3. Si el token existe, la página carga normalmente.
+4. El token se establece desde la landing page mediante un modal de acceso.
+
+> **Nota:** Esta implementación es apropiada para un MVP. En producción se recomienda migrar a **Cloudflare Access** (Zero Trust) o un sistema de autenticación basado en JWT con Workers KV.
+
+## Componentes Astro
+
+| Componente | Ubicación | Propósito |
+|------------|-----------|-----------|
+| `BaseLayout.astro` | `web/layouts/` | Layout base con meta tags y CSS global |
+| `AppLayout.astro` | `web/layouts/` | Layout para páginas privadas con nav y auth guard |
+| `NavBar.astro` | `web/components/` | Barra de navegación (pública/privada) |
+| `Hero.astro` | `web/components/` | Sección hero de landing |
+| `Features.astro` | `web/components/` | Tarjetas de funcionalidades |
+| `Footer.astro` | `web/components/` | Pie de página |
+
+## Build pipeline
+
+```
+Astro build (srcDir: ./web, outDir: ./dist)
+  → dist/ (HTML/CSS/JS estático)
+    → montado en Workers Static Assets (binding ASSETS)
+      → fallback desde Worker Hono (para rutas /api/*)
+```
+
+## Mejoras futuras (v2)
+
+- Integrar Cloudflare Access para autenticación Zero Trust sin código custom.
+- Agregar roles: `viewer` (solo consultas) vs `admin` (consultas + ingestión).
+- Implementar registro de usuarios con D1 y sesiones firmadas (JWT en Workers KV).
+- Agregar `/app/history` para historial de consultas por usuario.
