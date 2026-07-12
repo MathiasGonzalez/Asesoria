@@ -8,7 +8,7 @@ export class EmailService {
 
   /** Sends an OTP verification email to the given address. */
   async sendOtp(to: string, code: string): Promise<void> {
-    const subject = "Tu código de acceso — Asesoría DGI/BPS";
+    const subject = "Tu código de acceso — Adviser";
     const formattedCode = code.split("").join(" "); // e.g. "1 2 3 4 5 6"
 
     const text = [
@@ -20,7 +20,7 @@ export class EmailService {
 
     const html = `
       <div style="font-family:sans-serif;max-width:420px;margin:auto;padding:32px">
-        <h2 style="color:#1e40af;margin-bottom:8px">Asesoría DGI/BPS</h2>
+        <h2 style="color:#1e40af;margin-bottom:8px">Adviser</h2>
         <p style="color:#475569;margin-bottom:24px">Tu código de acceso es:</p>
         <div style="font-size:2.25rem;font-weight:700;letter-spacing:0.4em;background:#f1f5f9;
                     padding:20px;border-radius:10px;text-align:center;color:#0f172a">

@@ -1,6 +1,6 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "uy-tax-adviser",
+  "name": "adviser",
   "main": "src/index.ts",
   "compatibility_date": "2025-01-01",
 
@@ -51,7 +51,7 @@
   // -------------------------------------------------------------------------
   "env": {
     "develop": {
-      "name": "uy-tax-adviser-develop",
+      "name": "adviser-develop",
 
       "d1_databases": [
         {

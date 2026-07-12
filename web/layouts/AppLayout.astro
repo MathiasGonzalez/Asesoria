@@ -9,13 +9,13 @@ const { title } = Astro.props;
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>{title} — Asesoría DGI/BPS</title>
+    <title>{title} — Adviser</title>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <script src="https://cdn.tailwindcss.com"></script>
   </head>
   <body class="bg-slate-100 text-slate-800 antialiased">
     <nav class="bg-white border-b border-slate-200 px-6 py-3 flex items-center justify-between sticky top-0 z-10 shadow-sm">
-      <a href="/app" class="font-bold text-blue-600 text-lg tracking-tight">Asesoría DGI/BPS</a>
+      <a href="/app" class="font-extrabold text-slate-900 text-lg tracking-tight">Adviser<span class="text-blue-600">.</span></a>
       <div class="flex items-center gap-4">
         <span id="user-email" class="text-xs text-slate-500 hidden"></span>
         <button
@@ -35,7 +35,7 @@ const { title } = Astro.props;
       // ---------------------------------------------------------------------------
       // Auth guard – redirect to /login if no session token is stored
       // ---------------------------------------------------------------------------
-      const session = localStorage.getItem("uy_tax_session");
+      const session = localStorage.getItem("adviser_session");
       if (!session) {
         window.location.replace("/login?login=required");
       }
@@ -51,7 +51,7 @@ const { title } = Astro.props;
             headers: { Authorization: "Bearer " + session },
           });
           if (res.status === 401) {
-            localStorage.removeItem("uy_tax_session");
+            localStorage.removeItem("adviser_session");
             window.location.replace("/login?login=expired");
             return;
           }
@@ -63,7 +63,7 @@ const { title } = Astro.props;
       initSession();
 
       // Display email from decoded session info stored after login
-      const storedEmail = sessionStorage.getItem("uy_tax_email");
+      const storedEmail = sessionStorage.getItem("adviser_email");
       if (storedEmail && emailEl) {
         emailEl.textContent = storedEmail;
         emailEl.classList.remove("hidden");
@@ -72,15 +72,15 @@ const { title } = Astro.props;
       if (logoutBtn) {
         logoutBtn.classList.remove("hidden");
         logoutBtn.addEventListener("click", async () => {
-          const tok = localStorage.getItem("uy_tax_session");
+          const tok = localStorage.getItem("adviser_session");
           if (tok) {
             await fetch("/api/auth/logout", {
               method: "POST",
               headers: { Authorization: "Bearer " + tok },
             }).catch(() => {});
           }
-          localStorage.removeItem("uy_tax_session");
-          sessionStorage.removeItem("uy_tax_email");
+          localStorage.removeItem("adviser_session");
+          sessionStorage.removeItem("adviser_email");
           window.location.replace("/login");
         });
       }

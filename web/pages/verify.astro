@@ -4,7 +4,7 @@ import BaseLayout from "../layouts/BaseLayout.astro";
 
 <BaseLayout title="Verificar código">
   <nav class="bg-white border-b border-slate-200 px-6 py-3 flex items-center justify-between sticky top-0 z-10 shadow-sm">
-    <a href="/" class="font-bold text-blue-600 text-lg tracking-tight">Asesoría DGI/BPS</a>
+    <a href="/" class="font-extrabold text-slate-900 text-lg tracking-tight">Adviser<span class="text-blue-600">.</span></a>
     <a href="/login" class="text-xs text-slate-500 hover:text-blue-600 transition-colors">← Volver</a>
   </nav>
 
@@ -77,7 +77,7 @@ import BaseLayout from "../layouts/BaseLayout.astro";
   const subtitle  = document.getElementById("subtitle") as HTMLParagraphElement | null;
 
   // Redirect already-authenticated users
-  if (localStorage.getItem("uy_tax_session")) {
+  if (localStorage.getItem("adviser_session")) {
     window.location.replace("/app");
   }
 
@@ -124,8 +124,8 @@ import BaseLayout from "../layouts/BaseLayout.astro";
         return;
       }
 
-      localStorage.setItem("uy_tax_session", data.sessionToken);
-      if (email) sessionStorage.setItem("uy_tax_email", email);
+      localStorage.setItem("adviser_session", data.sessionToken);
+      if (email) sessionStorage.setItem("adviser_email", email);
       sessionStorage.removeItem("otp_email");
 
       window.location.href = "/app";
