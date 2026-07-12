@@ -12,10 +12,7 @@ import AppLayout from "../../layouts/AppLayout.astro";
   </div>
 
   <div class="bg-white rounded-xl border border-slate-200 p-6 shadow-sm flex flex-col gap-5">
-    <div
-      id="ingest-alert"
-      class="hidden text-xs rounded-lg p-3 border"
-    ></div>
+    <div id="ingest-alert" class="hidden text-xs rounded-lg p-3 border"></div>
 
     <form id="ingest-form" class="flex flex-col gap-4">
       <div class="grid sm:grid-cols-2 gap-4">
@@ -92,14 +89,18 @@ import AppLayout from "../../layouts/AppLayout.astro";
 </AppLayout>
 
 <script>
-  const form = document.getElementById("ingest-form") as HTMLFormElement | null;
-  const btn = document.getElementById("ingest-btn") as HTMLButtonElement | null;
+  const form     = document.getElementById("ingest-form") as HTMLFormElement | null;
+  const btn      = document.getElementById("ingest-btn") as HTMLButtonElement | null;
   const alertDiv = document.getElementById("ingest-alert") as HTMLDivElement | null;
 
   function showAlert(message: string, type: "success" | "error") {
     if (!alertDiv) return;
     alertDiv.innerText = message;
-    alertDiv.classList.remove("hidden", "bg-green-50", "text-green-800", "border-green-200", "bg-red-50", "text-red-800", "border-red-200");
+    alertDiv.classList.remove(
+      "hidden",
+      "bg-green-50", "text-green-800", "border-green-200",
+      "bg-red-50",   "text-red-800",   "border-red-200"
+    );
     if (type === "success") {
       alertDiv.classList.add("bg-green-50", "text-green-800", "border-green-200");
     } else {
@@ -111,20 +112,32 @@ import AppLayout from "../../layouts/AppLayout.astro";
     e.preventDefault();
     if (btn) { btn.disabled = true; btn.textContent = "Ingentando…"; }
 
+    const session = localStorage.getItem("uy_tax_session") ?? "";
+
     const payload = {
-      id: (document.getElementById("doc-id") as HTMLInputElement).value.trim(),
-      title: (document.getElementById("doc-title") as HTMLInputElement).value.trim(),
-      source: (document.getElementById("doc-source") as HTMLSelectElement).value,
+      id:      (document.getElementById("doc-id") as HTMLInputElement).value.trim(),
+      title:   (document.getElementById("doc-title") as HTMLInputElement).value.trim(),
+      source:  (document.getElementById("doc-source") as HTMLSelectElement).value,
       content: (document.getElementById("doc-content") as HTMLTextAreaElement).value.trim(),
-      url: (document.getElementById("doc-url") as HTMLInputElement).value.trim() || undefined,
+      url:     (document.getElementById("doc-url") as HTMLInputElement).value.trim() || undefined,
     };
 
     try {
       const res = await fetch("/api/ingest", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: "Bearer " + session,
+        },
         body: JSON.stringify(payload),
       });
+
+      if (res.status === 401) {
+        localStorage.removeItem("uy_tax_session");
+        window.location.replace("/login?login=expired");
+        return;
+      }
+
       const data = await res.json() as { success?: boolean; message?: string; error?: string };
       if (res.ok && data.success) {
         showAlert(`✓ ${data.message}`, "success");

@@ -15,9 +15,9 @@ const { title } = Astro.props;
   </head>
   <body class="bg-slate-100 text-slate-800 antialiased">
     <nav class="bg-white border-b border-slate-200 px-6 py-3 flex items-center justify-between sticky top-0 z-10 shadow-sm">
-      <a href="/" class="font-bold text-blue-600 text-lg tracking-tight">Asesoría DGI/BPS</a>
+      <a href="/app" class="font-bold text-blue-600 text-lg tracking-tight">Asesoría DGI/BPS</a>
       <div class="flex items-center gap-4">
-        <span id="user-indicator" class="text-xs text-slate-500 hidden">Sesión activa</span>
+        <span id="user-email" class="text-xs text-slate-500 hidden"></span>
         <button
           id="logout-btn"
           class="hidden text-xs text-red-600 hover:text-red-800 font-medium transition-colors"
@@ -26,27 +26,68 @@ const { title } = Astro.props;
         </button>
       </div>
     </nav>
+
     <main class="max-w-4xl mx-auto px-6 py-8 flex flex-col gap-6">
       <slot />
     </main>
 
     <script>
-      // Auth guard: redirect to landing if no token is present
-      const token = localStorage.getItem("uy_tax_token");
-      if (!token) {
-        window.location.href = "/?login=required";
+      // ---------------------------------------------------------------------------
+      // Auth guard – redirect to /login if no session token is stored
+      // ---------------------------------------------------------------------------
+      const session = localStorage.getItem("uy_tax_session");
+      if (!session) {
+        window.location.replace("/login?login=required");
       }
 
-      const indicator = document.getElementById("user-indicator");
+      // Show user email from the /api/feature-flags endpoint (which validates the token)
+      const emailEl  = document.getElementById("user-email");
       const logoutBtn = document.getElementById("logout-btn");
-      if (indicator) indicator.classList.remove("hidden");
+
+      async function initSession() {
+        if (!session) return;
+        try {
+          const res = await fetch("/api/feature-flags", {
+            headers: { Authorization: "Bearer " + session },
+          });
+          if (res.status === 401) {
+            localStorage.removeItem("uy_tax_session");
+            window.location.replace("/login?login=expired");
+            return;
+          }
+        } catch {
+          // Network error – allow offline use
+        }
+      }
+
+      initSession();
+
+      // Display email from decoded session info stored after login
+      const storedEmail = sessionStorage.getItem("uy_tax_email");
+      if (storedEmail && emailEl) {
+        emailEl.textContent = storedEmail;
+        emailEl.classList.remove("hidden");
+      }
+
       if (logoutBtn) {
         logoutBtn.classList.remove("hidden");
-        logoutBtn.addEventListener("click", () => {
-          localStorage.removeItem("uy_tax_token");
-          window.location.href = "/";
+        logoutBtn.addEventListener("click", async () => {
+          const tok = localStorage.getItem("uy_tax_session");
+          if (tok) {
+            await fetch("/api/auth/logout", {
+              method: "POST",
+              headers: { Authorization: "Bearer " + tok },
+            }).catch(() => {});
+          }
+          localStorage.removeItem("uy_tax_session");
+          sessionStorage.removeItem("uy_tax_email");
+          window.location.replace("/login");
         });
       }
+
+      // Expose helper so pages can attach the auth header to fetch calls
+      (window as any).__authHeader = () =>
+        session ? { Authorization: "Bearer " + session } : {};
     </script>
   </body>
 </html>

@@ -3,8 +3,6 @@ import BaseLayout from "../layouts/BaseLayout.astro";
 import Hero from "../components/Hero.astro";
 import Features from "../components/Features.astro";
 import Footer from "../components/Footer.astro";
-
-const showLoginAlert = Astro.url.searchParams.get("login") === "required";
 ---
 
 <BaseLayout title="Inicio">
@@ -12,18 +10,13 @@ const showLoginAlert = Astro.url.searchParams.get("login") === "required";
   <nav class="bg-white border-b border-slate-200 px-6 py-3 flex items-center justify-between sticky top-0 z-10 shadow-sm">
     <span class="font-bold text-blue-600 text-lg tracking-tight">Asesoría DGI/BPS</span>
     <a
-      href="#acceso"
+      id="cta-btn"
+      href="/login"
       class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium px-4 py-2 rounded-lg transition-colors"
     >
       Acceder
     </a>
   </nav>
-
-  {showLoginAlert && (
-    <div class="bg-amber-50 border border-amber-200 text-amber-800 text-sm px-6 py-3 text-center">
-      Necesitás un token de acceso para usar el asistente.
-    </div>
-  )}
 
   <Hero />
 
@@ -37,9 +30,9 @@ const showLoginAlert = Astro.url.searchParams.get("login") === "required";
       <h2 class="text-2xl font-bold text-slate-800 text-center mb-10">¿Cómo funciona?</h2>
       <ol class="grid sm:grid-cols-3 gap-8">
         {[
-          { n: "1", title: "Ingresá tu consulta", desc: "Escribís tu pregunta sobre normativa DGI o BPS en lenguaje natural." },
-          { n: "2", title: "El sistema anonimiza y recupera", desc: "PII redactada automáticamente. Se recuperan los fragmentos legales más relevantes del corpus oficial." },
-          { n: "3", title: "Respuesta fundamentada", desc: "La IA genera una respuesta basada exclusivamente en la normativa recuperada, con cita y enlace a la fuente." },
+          { n: "1", title: "Ingresá tu email",       desc: "Recibís un código de un solo uso (OTP). No hace falta recordar contraseñas." },
+          { n: "2", title: "Realizá tu consulta",    desc: "Escribís tu pregunta sobre normativa DGI o BPS. PII redactada automáticamente antes del procesamiento." },
+          { n: "3", title: "Respuesta fundamentada", desc: "La IA genera la respuesta basada exclusivamente en normativa oficial, con cita y enlace a la fuente." },
         ].map((step) => (
           <li class="flex flex-col items-center text-center gap-3">
             <span class="w-10 h-10 rounded-full bg-blue-600 text-white font-bold flex items-center justify-center text-lg">
@@ -53,33 +46,19 @@ const showLoginAlert = Astro.url.searchParams.get("login") === "required";
     </div>
   </section>
 
-  <!-- Access section -->
-  <section id="acceso" class="py-16 bg-white">
-    <div class="max-w-md mx-auto px-6 text-center flex flex-col gap-6">
-      <h2 class="text-2xl font-bold text-slate-800">Acceder al asistente</h2>
-      <p class="text-sm text-slate-600">Ingresá tu token de acceso para usar la plataforma.</p>
-
-      <div id="login-alert" class="hidden bg-red-50 border border-red-200 text-red-700 text-xs rounded p-3"></div>
-
-      <form id="login-form" class="flex flex-col gap-3">
-        <input
-          type="password"
-          id="token-input"
-          placeholder="Token de acceso"
-          class="rounded-lg border border-slate-300 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          required
-        />
-        <button
-          type="submit"
-          class="bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg px-6 py-2 text-sm transition-colors"
-        >
-          Ingresar
-        </button>
-      </form>
-
-      <p class="text-xs text-slate-400">
-        ¿No tenés token? Contactá al administrador de la plataforma.
+  <!-- CTA section -->
+  <section id="acceso" class="py-16 bg-white text-center">
+    <div class="max-w-md mx-auto px-6 flex flex-col gap-5">
+      <h2 class="text-2xl font-bold text-slate-800">Empezá ahora</h2>
+      <p class="text-sm text-slate-600">
+        La primera vez que ingresás con tu email se crea tu cuenta automáticamente.
       </p>
+      <a
+        href="/login"
+        class="inline-block bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg px-8 py-3 text-sm transition-colors"
+      >
+        Acceder con email →
+      </a>
     </div>
   </section>
 
@@ -87,23 +66,9 @@ const showLoginAlert = Astro.url.searchParams.get("login") === "required";
 </BaseLayout>
 
 <script>
-  const form = document.getElementById("login-form") as HTMLFormElement | null;
-  const alertDiv = document.getElementById("login-alert") as HTMLDivElement | null;
-
-  form?.addEventListener("submit", (e) => {
-    e.preventDefault();
-    const input = document.getElementById("token-input") as HTMLInputElement;
-    const token = input.value.trim();
-    if (!token) return;
-
-    // MVP: accept any non-empty token and store it
-    localStorage.setItem("uy_tax_token", token);
-    window.location.href = "/app";
-  });
-
-  // If already authenticated, show a link to the app
-  if (localStorage.getItem("uy_tax_token")) {
-    const btn = document.querySelector<HTMLAnchorElement>('a[href="#acceso"]');
+  // If already authenticated, update CTA to go directly to the app
+  if (localStorage.getItem("uy_tax_session")) {
+    const btn = document.getElementById("cta-btn") as HTMLAnchorElement | null;
     if (btn) {
       btn.href = "/app";
       btn.textContent = "Ir al asistente";

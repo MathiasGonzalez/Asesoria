@@ -1,0 +1,120 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+
+const showRequired = Astro.url.searchParams.get("login") === "required";
+const showExpired  = Astro.url.searchParams.get("login") === "expired";
+---
+
+<BaseLayout title="Iniciar sesión">
+  <nav class="bg-white border-b border-slate-200 px-6 py-3 flex items-center justify-between sticky top-0 z-10 shadow-sm">
+    <a href="/" class="font-bold text-blue-600 text-lg tracking-tight">Asesoría DGI/BPS</a>
+  </nav>
+
+  <div class="min-h-[calc(100vh-57px)] flex items-center justify-center px-4 py-12 bg-slate-50">
+    <div class="w-full max-w-sm">
+      <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-8 flex flex-col gap-6">
+
+        <!-- Header -->
+        <div class="text-center flex flex-col gap-1">
+          <div class="w-12 h-12 rounded-xl bg-blue-100 flex items-center justify-center mx-auto mb-2">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 0 1-2.25 2.25h-15a2.25 2.25 0 0 1-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25m19.5 0v.243a2.25 2.25 0 0 1-1.07 1.916l-7.5 4.615a2.25 2.25 0 0 1-2.36 0L3.32 8.91a2.25 2.25 0 0 1-1.07-1.916V6.75" />
+            </svg>
+          </div>
+          <h1 class="text-xl font-bold text-slate-800">Acceder</h1>
+          <p class="text-sm text-slate-500">Ingresá tu email para recibir un código de acceso.</p>
+        </div>
+
+        <!-- Alerts -->
+        {showRequired && (
+          <div class="bg-amber-50 border border-amber-200 text-amber-800 text-xs rounded-lg px-4 py-3">
+            Necesitás iniciar sesión para acceder al asistente.
+          </div>
+        )}
+        {showExpired && (
+          <div class="bg-amber-50 border border-amber-200 text-amber-800 text-xs rounded-lg px-4 py-3">
+            Tu sesión expiró. Por favor iniciá sesión nuevamente.
+          </div>
+        )}
+
+        <div id="error-alert" class="hidden bg-red-50 border border-red-200 text-red-700 text-xs rounded-lg px-4 py-3"></div>
+
+        <!-- Form -->
+        <form id="otp-form" class="flex flex-col gap-4">
+          <div class="flex flex-col gap-1">
+            <label for="email" class="text-xs font-medium text-slate-600">Email</label>
+            <input
+              type="email"
+              id="email"
+              name="email"
+              placeholder="tu@email.com"
+              autocomplete="email"
+              required
+              class="rounded-lg border border-slate-300 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
+          <button
+            type="submit"
+            id="submit-btn"
+            class="bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white font-medium rounded-lg px-6 py-2.5 text-sm transition-colors"
+          >
+            Enviar código
+          </button>
+        </form>
+
+        <p class="text-center text-xs text-slate-400">
+          La primera vez que iniciás sesión se crea tu cuenta automáticamente.
+        </p>
+      </div>
+    </div>
+  </div>
+</BaseLayout>
+
+<script>
+  const form = document.getElementById("otp-form") as HTMLFormElement | null;
+  const btn  = document.getElementById("submit-btn") as HTMLButtonElement | null;
+  const err  = document.getElementById("error-alert") as HTMLDivElement | null;
+
+  // Redirect already-authenticated users directly to the app
+  if (localStorage.getItem("uy_tax_session")) {
+    window.location.replace("/app");
+  }
+
+  form?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    if (err) err.classList.add("hidden");
+    if (btn) { btn.disabled = true; btn.textContent = "Enviando…"; }
+
+    const email = (document.getElementById("email") as HTMLInputElement).value.trim().toLowerCase();
+
+    try {
+      const res = await fetch("/api/auth/request-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      const data = await res.json() as { ok?: boolean; error?: string };
+
+      if (!res.ok || !data.ok) {
+        if (err) {
+          err.textContent = data.error ?? "Error al enviar el código.";
+          err.classList.remove("hidden");
+        }
+        return;
+      }
+
+      // Redirect to verify page carrying the email in sessionStorage
+      sessionStorage.setItem("otp_email", email);
+      window.location.href = "/verify";
+
+    } catch {
+      if (err) {
+        err.textContent = "Error de red. Verificá tu conexión e intentá nuevamente.";
+        err.classList.remove("hidden");
+      }
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = "Enviar código"; }
+    }
+  });
+</script>

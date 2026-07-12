@@ -1,0 +1,170 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+---
+
+<BaseLayout title="Verificar código">
+  <nav class="bg-white border-b border-slate-200 px-6 py-3 flex items-center justify-between sticky top-0 z-10 shadow-sm">
+    <a href="/" class="font-bold text-blue-600 text-lg tracking-tight">Asesoría DGI/BPS</a>
+    <a href="/login" class="text-xs text-slate-500 hover:text-blue-600 transition-colors">← Volver</a>
+  </nav>
+
+  <div class="min-h-[calc(100vh-57px)] flex items-center justify-center px-4 py-12 bg-slate-50">
+    <div class="w-full max-w-sm">
+      <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-8 flex flex-col gap-6">
+
+        <!-- Header -->
+        <div class="text-center flex flex-col gap-1">
+          <div class="w-12 h-12 rounded-xl bg-green-100 flex items-center justify-center mx-auto mb-2">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75m-3-7.036A11.959 11.959 0 0 1 3.598 6 11.99 11.99 0 0 0 3 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285Z" />
+            </svg>
+          </div>
+          <h1 class="text-xl font-bold text-slate-800">Verificar código</h1>
+          <p id="subtitle" class="text-sm text-slate-500">
+            Ingresá el código de 6 dígitos que enviamos a tu email.
+          </p>
+        </div>
+
+        <div id="error-alert" class="hidden bg-red-50 border border-red-200 text-red-700 text-xs rounded-lg px-4 py-3"></div>
+
+        <!-- Form -->
+        <form id="verify-form" class="flex flex-col gap-4">
+          <div class="flex flex-col gap-1">
+            <label for="code" class="text-xs font-medium text-slate-600">Código OTP</label>
+            <input
+              type="text"
+              id="code"
+              name="code"
+              inputmode="numeric"
+              pattern="[0-9]{6}"
+              maxlength="6"
+              placeholder="123456"
+              autocomplete="one-time-code"
+              required
+              class="rounded-lg border border-slate-300 px-4 py-2.5 text-sm text-center tracking-widest font-mono text-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
+          <button
+            type="submit"
+            id="submit-btn"
+            class="bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white font-medium rounded-lg px-6 py-2.5 text-sm transition-colors"
+          >
+            Verificar e ingresar
+          </button>
+        </form>
+
+        <!-- Resend -->
+        <div class="text-center text-xs text-slate-400 flex flex-col gap-1">
+          <span>¿No recibiste el código?</span>
+          <button
+            id="resend-btn"
+            class="text-blue-600 hover:text-blue-800 font-medium transition-colors"
+          >
+            Reenviar código
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</BaseLayout>
+
+<script>
+  const form      = document.getElementById("verify-form") as HTMLFormElement | null;
+  const submitBtn = document.getElementById("submit-btn") as HTMLButtonElement | null;
+  const resendBtn = document.getElementById("resend-btn") as HTMLButtonElement | null;
+  const errDiv    = document.getElementById("error-alert") as HTMLDivElement | null;
+  const subtitle  = document.getElementById("subtitle") as HTMLParagraphElement | null;
+
+  // Redirect already-authenticated users
+  if (localStorage.getItem("uy_tax_session")) {
+    window.location.replace("/app");
+  }
+
+  const email = sessionStorage.getItem("otp_email");
+  if (!email) {
+    // No email in session; redirect to login
+    window.location.replace("/login");
+  } else if (subtitle) {
+    subtitle.textContent = `Ingresá el código de 6 dígitos enviado a ${email}.`;
+  }
+
+  function showError(msg: string) {
+    if (!errDiv) return;
+    errDiv.textContent = msg;
+    errDiv.classList.remove("hidden");
+  }
+
+  function hideError() {
+    errDiv?.classList.add("hidden");
+  }
+
+  form?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    hideError();
+    if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = "Verificando…"; }
+
+    const code = (document.getElementById("code") as HTMLInputElement).value.trim();
+
+    try {
+      const res = await fetch("/api/auth/verify-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, code }),
+      });
+      const data = await res.json() as {
+        ok?: boolean;
+        sessionToken?: string;
+        isNewUser?: boolean;
+        error?: string;
+      };
+
+      if (!res.ok || !data.ok || !data.sessionToken) {
+        showError(data.error ?? "Código inválido o expirado.");
+        return;
+      }
+
+      localStorage.setItem("uy_tax_session", data.sessionToken);
+      if (email) sessionStorage.setItem("uy_tax_email", email);
+      sessionStorage.removeItem("otp_email");
+
+      window.location.href = "/app";
+
+    } catch {
+      showError("Error de red. Verificá tu conexión e intentá nuevamente.");
+    } finally {
+      if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = "Verificar e ingresar"; }
+    }
+  });
+
+  resendBtn?.addEventListener("click", async () => {
+    if (!email) return;
+    hideError();
+    resendBtn.disabled = true;
+    resendBtn.textContent = "Enviando…";
+
+    try {
+      const res = await fetch("/api/auth/request-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      const data = await res.json() as { ok?: boolean; error?: string };
+
+      if (!res.ok || !data.ok) {
+        showError(data.error ?? "No se pudo reenviar el código.");
+      } else {
+        resendBtn.textContent = "¡Código reenviado!";
+        setTimeout(() => {
+          if (resendBtn) { resendBtn.disabled = false; resendBtn.textContent = "Reenviar código"; }
+        }, 30000);
+        return;
+      }
+    } catch {
+      showError("Error de red al reenviar el código.");
+    }
+
+    resendBtn.disabled = false;
+    resendBtn.textContent = "Reenviar código";
+  });
+</script>
