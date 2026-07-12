@@ -3,59 +3,69 @@ import AppLayout from "../../layouts/AppLayout.astro";
 ---
 
 <AppLayout title="Asistente de Consultas">
-  <div class="flex flex-col gap-2">
-    <h1 class="text-xl font-bold text-slate-800">Asistente Regulatorio DGI / BPS</h1>
-    <p class="text-sm text-slate-500">
+  <div class="flex flex-col gap-1.5">
+    <h1 class="text-2xl font-bold" style="color: #0f1117; letter-spacing: -0.02em;">Asistente Regulatorio DGI / BPS</h1>
+    <p class="text-sm" style="color: #6b7280; line-height: 1.6;">
       Consultá normativa tributaria y de seguridad social en Uruguay. Los datos sensibles son
       anonimizados automáticamente antes del procesamiento.
     </p>
   </div>
 
   <!-- Search form -->
-  <div class="bg-white rounded-xl border border-slate-200 p-6 shadow-sm flex flex-col gap-4">
+  <div class="flex flex-col gap-4 p-6" style="background: white; border-radius: 1rem; border: 1px solid rgba(0,0,0,0.07); box-shadow: 0 2px 12px rgba(0,0,0,0.05);">
     <form id="search-form" class="flex gap-2">
       <input
         type="text"
         id="query-input"
         placeholder="Ej: ¿Qué plazo tiene una auditoría fiscal de DGI?"
-        class="flex-grow rounded-lg border border-slate-300 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+        class="grow rounded-xl px-4 py-2.5 text-sm transition-all focus:outline-none"
+        style="border: 1.5px solid rgba(0,0,0,0.12); background: #fafaf9; color: #0f1117;"
+        onfocus="this.style.borderColor='#4f46e5'; this.style.boxShadow='0 0 0 3px rgba(79,70,229,0.1)';"
+        onblur="this.style.borderColor='rgba(0,0,0,0.12)'; this.style.boxShadow='none';"
         required
       />
       <button
         type="submit"
         id="submit-btn"
-        class="bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg px-5 py-2 text-sm transition-colors whitespace-nowrap"
+        class="text-white font-semibold rounded-xl px-5 py-2 text-sm transition-all whitespace-nowrap"
+        style="background: #4f46e5; box-shadow: 0 2px 10px rgba(79,70,229,0.3);"
+        onmouseover="this.style.background='#4338ca'; this.style.transform='translateY(-1px)';"
+        onmouseout="this.style.background='#4f46e5'; this.style.transform='';"
       >
         Consultar
       </button>
     </form>
-    <p class="text-xs text-slate-400">
-      🔒 Tu consulta es anonimizada antes de ser procesada. No se envían CIs, RUTs ni montos al modelo.
+    <p class="text-xs flex items-center gap-1.5" style="color: #9ca3af;">
+      <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 1a4.5 4.5 0 00-4.5 4.5V9H5a2 2 0 00-2 2v6a2 2 0 002 2h10a2 2 0 002-2v-6a2 2 0 00-2-2h-.5V5.5A4.5 4.5 0 0010 1zm3 8V5.5a3 3 0 10-6 0V9h6z" clip-rule="evenodd"/></svg>
+      Tu consulta es anonimizada antes de ser procesada. No se envían CIs, RUTs ni montos al modelo.
     </p>
   </div>
 
   <!-- Loading -->
-  <div id="loading" class="hidden text-center py-10 flex flex-col items-center gap-3">
-    <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-    <p class="text-sm text-slate-500">Analizando normativa y validando secreto tributario…</p>
+  <div id="loading" class="hidden text-center py-12 flex flex-col items-center gap-4">
+    <div class="inline-block animate-spin rounded-full h-8 w-8" style="border: 2px solid rgba(79,70,229,0.15); border-bottom-color: #4f46e5;"></div>
+    <p class="text-sm" style="color: #6b7280;">Analizando normativa y validando secreto tributario…</p>
   </div>
 
   <!-- Results -->
-  <div id="results-card" class="hidden bg-white rounded-xl border border-slate-200 p-6 shadow-sm flex flex-col gap-4">
-    <div class="flex justify-between items-center border-b border-slate-100 pb-3">
-      <h2 class="font-semibold text-slate-800">Respuesta del Asistente</h2>
-      <span id="latency-tag" class="text-xs text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full"></span>
+  <div id="results-card" class="hidden flex flex-col gap-4 p-6" style="background: white; border-radius: 1rem; border: 1px solid rgba(0,0,0,0.07); box-shadow: 0 2px 12px rgba(0,0,0,0.05);">
+    <div class="flex justify-between items-center pb-3" style="border-bottom: 1px solid rgba(0,0,0,0.06);">
+      <h2 class="font-semibold" style="color: #0f1117;">Respuesta del Asistente</h2>
+      <span id="latency-tag" class="text-xs rounded-full px-2.5 py-1" style="color: #6b7280; background: #f3f4f6;"></span>
     </div>
     <div
       id="sanitized-alert"
-      class="hidden text-xs bg-amber-50 text-amber-800 rounded-lg p-3 border border-amber-200"
+      class="hidden text-xs rounded-xl p-3"
+      style="background: rgba(251,191,36,0.1); border: 1px solid rgba(251,191,36,0.3); color: #92400e;"
     ></div>
-    <div id="answer-content" class="text-sm text-slate-700 leading-relaxed whitespace-pre-line"></div>
+    <div id="answer-content" class="text-sm leading-relaxed whitespace-pre-line" style="color: #374151;"></div>
   </div>
 
   <!-- Nav links -->
-  <div class="flex gap-4 text-xs text-slate-500">
-    <a href="/app/ingest" class="hover:text-blue-600 transition-colors underline underline-offset-2">
+  <div class="flex gap-4 text-xs" style="color: #9ca3af;">
+    <a href="/app/ingest" class="transition-colors" style="color: #6b7280;"
+      onmouseover="this.style.color='#4f46e5'"
+      onmouseout="this.style.color='#6b7280'">
       Administrar documentos →
     </a>
   </div>

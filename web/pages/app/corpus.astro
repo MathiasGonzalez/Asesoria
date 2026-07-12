@@ -1,0 +1,267 @@
+---
+import AppLayout from "../../layouts/AppLayout.astro";
+---
+
+<AppLayout title="Corpus Normativo">
+  <div class="flex flex-col gap-1.5">
+    <div class="flex items-center justify-between gap-4 flex-wrap">
+      <div>
+        <h1 class="text-2xl font-bold" style="color: #0f1117; letter-spacing: -0.02em;">Corpus normativo</h1>
+        <p class="text-sm mt-1" style="color: #6b7280; line-height: 1.6;">
+          Documentos indexados disponibles para el asistente regulatorio.
+        </p>
+      </div>
+      <a id="add-btn" href="/app/ingest"
+        class="hidden text-sm font-medium px-4 py-2 rounded-xl transition-all whitespace-nowrap"
+        style="background: #4f46e5; color: white; box-shadow: 0 2px 8px rgba(79,70,229,0.25);"
+        onmouseover="this.style.background='#4338ca'" onmouseout="this.style.background='#4f46e5'">
+        + Agregar documento
+      </a>
+    </div>
+  </div>
+
+  <!-- Stats bar -->
+  <div id="stats-bar" class="hidden flex gap-6 py-3 px-5 rounded-xl text-xs"
+    style="background: white; border: 1px solid rgba(0,0,0,0.07);">
+    <span><strong id="stat-docs" style="color: #0f1117;">–</strong> <span style="color: #9ca3af;">documentos</span></span>
+    <span><strong id="stat-chunks" style="color: #0f1117;">–</strong> <span style="color: #9ca3af;">fragmentos indexados</span></span>
+  </div>
+
+  <!-- Loading skeleton -->
+  <div id="loading" class="flex flex-col gap-3">
+    {Array.from({ length: 4 }).map(() => (
+      <div class="rounded-xl p-5 animate-pulse" style="background: white; border: 1px solid rgba(0,0,0,0.07);">
+        <div class="flex justify-between">
+          <div class="flex flex-col gap-2 flex-1">
+            <div class="h-4 rounded w-1/2" style="background: #f3f4f6;"></div>
+            <div class="h-3 rounded w-1/4" style="background: #f3f4f6;"></div>
+          </div>
+          <div class="h-8 w-20 rounded-lg" style="background: #f3f4f6;"></div>
+        </div>
+      </div>
+    ))}
+  </div>
+
+  <!-- Empty state -->
+  <div id="empty-state" class="hidden text-center py-16 flex flex-col items-center gap-3">
+    <svg class="w-10 h-10" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="color: #d1d5db;">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12.75V12A2.25 2.25 0 0 1 4.5 9.75h15A2.25 2.25 0 0 1 21.75 12v.75m-8.69-6.44-2.12-2.12a1.5 1.5 0 0 0-1.061-.44H4.5A2.25 2.25 0 0 0 2.25 6v8.25m19.5 0v.75A2.25 2.25 0 0 1 19.5 17.25h-15A2.25 2.25 0 0 1 2.25 17.25V15m19.5 0v-3.375c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125V15m0 0" />
+    </svg>
+    <p class="text-sm font-medium" style="color: #6b7280;">El corpus está vacío.</p>
+    <p class="text-xs" style="color: #9ca3af;">Cargá documentos normativos para habilitar el asistente.</p>
+    <a id="empty-add-btn" href="/app/ingest" class="hidden text-sm font-medium transition-colors mt-1" style="color: #4f46e5;"
+      onmouseover="this.style.color='#4338ca'" onmouseout="this.style.color='#4f46e5'">
+      Agregar primer documento →
+    </a>
+  </div>
+
+  <!-- Document list -->
+  <div id="doc-list" class="hidden flex flex-col gap-3"></div>
+
+  <!-- Alert -->
+  <div id="alert" class="hidden text-xs rounded-xl px-4 py-3"
+    style="background: rgba(239,68,68,0.07); border: 1px solid rgba(239,68,68,0.25); color: #b91c1c;"></div>
+</AppLayout>
+
+<!-- Confirm delete modal -->
+<div id="confirm-overlay" class="fixed inset-0 z-50 hidden items-center justify-center px-4"
+  style="background: rgba(0,0,0,0.4); backdrop-filter: blur(4px);">
+  <div class="w-full max-w-sm rounded-2xl p-6 flex flex-col gap-4"
+    style="background: white; box-shadow: 0 20px 60px rgba(0,0,0,0.15);">
+    <h2 class="text-base font-semibold" style="color: #0f1117;">¿Eliminar documento?</h2>
+    <p class="text-sm" style="color: #6b7280;" id="confirm-body"></p>
+    <div class="flex gap-3 justify-end">
+      <button id="confirm-cancel" class="text-sm font-medium px-4 py-2 rounded-xl transition-colors"
+        style="border: 1px solid rgba(0,0,0,0.1); color: #374151;"
+        onmouseover="this.style.background='rgba(0,0,0,0.04)'" onmouseout="this.style.background='transparent'">
+        Cancelar
+      </button>
+      <button id="confirm-ok" class="text-sm font-medium px-4 py-2 rounded-xl text-white transition-colors"
+        style="background: #dc2626;"
+        onmouseover="this.style.background='#b91c1c'" onmouseout="this.style.background='#dc2626'">
+        Eliminar
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+  const loadingEl  = document.getElementById("loading")     as HTMLDivElement;
+  const emptyEl    = document.getElementById("empty-state") as HTMLDivElement;
+  const listEl     = document.getElementById("doc-list")    as HTMLDivElement;
+  const statsBar   = document.getElementById("stats-bar")   as HTMLDivElement;
+  const alertEl    = document.getElementById("alert")       as HTMLDivElement;
+  const addBtn     = document.getElementById("add-btn")     as HTMLAnchorElement;
+  const emptyAddBtn = document.getElementById("empty-add-btn") as HTMLAnchorElement;
+
+  const confirmOverlay = document.getElementById("confirm-overlay") as HTMLDivElement;
+  const confirmBody    = document.getElementById("confirm-body")    as HTMLParagraphElement;
+  const confirmCancel  = document.getElementById("confirm-cancel")  as HTMLButtonElement;
+  const confirmOk      = document.getElementById("confirm-ok")      as HTMLButtonElement;
+
+  let pendingDeleteId   = "";
+  let pendingDeleteTitle = "";
+  let userIsAdmin = false;
+
+  function showAlert(msg: string) {
+    alertEl.textContent = msg;
+    alertEl.classList.remove("hidden");
+    setTimeout(() => alertEl.classList.add("hidden"), 6000);
+  }
+
+  function formatDate(ts: number) {
+    return new Date(ts * 1000).toLocaleDateString("es-UY", {
+      day: "2-digit", month: "short", year: "numeric"
+    });
+  }
+
+  function openConfirm(id: string, title: string) {
+    pendingDeleteId    = id;
+    pendingDeleteTitle = title;
+    confirmBody.textContent = `Esto eliminará "${title}" y todos sus fragmentos del índice vectorial. La acción no se puede deshacer.`;
+    confirmOverlay.classList.remove("hidden");
+    confirmOverlay.classList.add("flex");
+  }
+
+  function closeConfirm() {
+    confirmOverlay.classList.add("hidden");
+    confirmOverlay.classList.remove("flex");
+    pendingDeleteId = "";
+  }
+
+  confirmCancel?.addEventListener("click", closeConfirm);
+  confirmOverlay?.addEventListener("click", (e) => { if (e.target === confirmOverlay) closeConfirm(); });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeConfirm(); });
+
+  confirmOk?.addEventListener("click", async () => {
+    if (!pendingDeleteId) return;
+    const id = pendingDeleteId;
+    closeConfirm();
+
+    const session = localStorage.getItem("adviser_session") ?? "";
+    const res = await fetch(`/api/documents/${encodeURIComponent(id)}`, {
+      method: "DELETE",
+      headers: { Authorization: "Bearer " + session },
+    });
+
+    if (res.status === 401) { localStorage.removeItem("adviser_session"); window.location.replace("/login?login=expired"); return; }
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: "Error desconocido." })) as { error?: string };
+      showAlert(err.error ?? "No se pudo eliminar el documento.");
+      return;
+    }
+
+    // Remove from DOM immediately
+    document.getElementById(`doc-row-${CSS.escape(id)}`)?.remove();
+    const remaining = listEl.querySelectorAll("[id^='doc-row-']").length;
+    if (remaining === 0) {
+      listEl.classList.add("hidden");
+      statsBar.classList.add("hidden");
+      emptyEl.classList.remove("hidden");
+    }
+  });
+
+  type DocRow = {
+    id: string;
+    title: string;
+    source: string;
+    url: string | null;
+    created_at: number;
+    chunk_count: number;
+  };
+
+  function renderDocs(docs: DocRow[]) {
+    loadingEl.classList.add("hidden");
+
+    if (docs.length === 0) {
+      emptyEl.classList.remove("hidden");
+      if (userIsAdmin) emptyAddBtn.classList.remove("hidden");
+      return;
+    }
+
+    const totalChunks = docs.reduce((s, d) => s + d.chunk_count, 0);
+    const statDocs   = document.getElementById("stat-docs")   as HTMLSpanElement;
+    const statChunks = document.getElementById("stat-chunks") as HTMLSpanElement;
+    statDocs.textContent   = String(docs.length);
+    statChunks.textContent = String(totalChunks);
+    statsBar.classList.remove("hidden");
+
+    listEl.innerHTML = "";
+    for (const doc of docs) {
+      const row = document.createElement("div");
+      row.id = `doc-row-${doc.id}`;
+      row.className = "rounded-xl p-5 flex items-start justify-between gap-4";
+      row.style.cssText = "background: white; border: 1px solid rgba(0,0,0,0.07); box-shadow: 0 1px 4px rgba(0,0,0,0.03);";
+
+      const sourceColor: Record<string, string> = {
+        DGI: "rgba(79,70,229,0.12)",
+        BPS: "rgba(16,185,129,0.12)",
+      };
+      const sourceBg = sourceColor[doc.source] ?? "rgba(0,0,0,0.06)";
+
+      row.innerHTML = `
+        <div class="flex flex-col gap-1.5 flex-1 min-w-0">
+          <div class="flex items-center gap-2 flex-wrap">
+            <span class="text-xs font-semibold px-2 py-0.5 rounded-full" style="background: ${sourceBg}; color: #374151;">${doc.source}</span>
+            <span class="text-sm font-medium truncate" style="color: #0f1117;">${doc.title}</span>
+          </div>
+          <div class="flex gap-4 text-xs" style="color: #9ca3af;">
+            <span>${doc.chunk_count} fragmento${doc.chunk_count !== 1 ? "s" : ""}</span>
+            <span>${formatDate(doc.created_at)}</span>
+            ${doc.url ? `<a href="${doc.url}" target="_blank" rel="noopener noreferrer" class="transition-colors truncate max-w-xs" style="color: #6b7280;"
+              onmouseover="this.style.color='#4f46e5'" onmouseout="this.style.color='#6b7280'">Ver fuente ↗</a>` : ""}
+          </div>
+        </div>
+        ${userIsAdmin ? `<button
+          class="delete-btn flex-shrink-0 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors"
+          data-id="${doc.id}" data-title="${doc.title.replace(/"/g, '&quot;')}"
+          style="color: #dc2626; border: 1px solid rgba(220,38,38,0.2);"
+          onmouseover="this.style.background='rgba(220,38,38,0.07)'"
+          onmouseout="this.style.background='transparent'">
+          Eliminar
+        </button>` : ""}
+      `;
+      listEl.appendChild(row);
+    }
+
+    listEl.querySelectorAll(".delete-btn").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const id    = (btn as HTMLElement).dataset.id    ?? "";
+        const title = (btn as HTMLElement).dataset.title ?? "";
+        openConfirm(id, title);
+      });
+    });
+
+    listEl.classList.remove("hidden");
+  }
+
+  async function loadDocs() {
+    // Get role first, then documents
+    const session = localStorage.getItem("adviser_session") ?? "";
+    const headers = { Authorization: "Bearer " + session };
+
+    const [meRes, docsRes] = await Promise.all([
+      fetch("/api/me",        { headers }),
+      fetch("/api/documents", { headers }),
+    ]);
+
+    if (meRes.status === 401 || docsRes.status === 401) {
+      localStorage.removeItem("adviser_session");
+      window.location.replace("/login?login=expired");
+      return;
+    }
+
+    if (meRes.ok) {
+      const me = await meRes.json() as { role?: string };
+      userIsAdmin = me.role === "admin";
+      if (userIsAdmin) addBtn.classList.remove("hidden");
+    }
+
+    if (!docsRes.ok) { loadingEl.classList.add("hidden"); showAlert("No se pudo cargar el corpus."); return; }
+
+    const data = await docsRes.json() as { documents: DocRow[] };
+    renderDocs(data.documents);
+  }
+
+  loadDocs();
+</script>

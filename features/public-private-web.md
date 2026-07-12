@@ -32,7 +32,7 @@ La aplicación web (construida con **Astro** en modo estático) se divide en dos
 
 La guardia de acceso es del lado del cliente (client-side guard):
 
-1. En cada página privada, un script inline verifica `localStorage.getItem("uy_tax_token")`.
+1. En cada página privada, un script inline verifica `localStorage.getItem("advisor_uy_token")`.
 2. Si el token no existe, redirige a `/?login=required`.
 3. Si el token existe, la página carga normalmente.
 4. El token se establece desde la landing page mediante un modal de acceso.

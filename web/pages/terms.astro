@@ -1,0 +1,105 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+---
+
+<BaseLayout title="Términos y Condiciones">
+  <nav class="bg-white border-b border-slate-200 px-6 py-3 flex items-center justify-between sticky top-0 z-10 shadow-sm">
+    <a href="/" class="font-extrabold text-slate-900 text-lg tracking-tight">Adviser<span class="text-blue-600">.</span></a>
+    <a href="/login" class="text-xs text-slate-500 hover:text-blue-600 transition-colors">← Volver</a>
+  </nav>
+
+  <div class="max-w-3xl mx-auto px-6 py-12">
+    <div class="flex items-center gap-3 mb-8">
+      <h1 class="text-3xl font-bold text-slate-900">Términos y Condiciones</h1>
+      <span id="version-badge" class="text-xs font-mono bg-slate-100 text-slate-500 border border-slate-200 rounded-full px-3 py-1">v—</span>
+    </div>
+    <p class="text-sm text-slate-400 mb-10">Última actualización: <span id="updated-date">—</span></p>
+
+    <div class="prose prose-slate max-w-none space-y-8 text-sm leading-relaxed text-slate-700">
+
+      <section>
+        <h2 class="text-lg font-semibold text-slate-800 mb-2">1. Objeto del servicio</h2>
+        <p>
+          Adviser es una plataforma de asesoramiento tributario asistido por inteligencia artificial,
+          fundamentado exclusivamente en normativa oficial de la Dirección General Impositiva (DGI)
+          y el Banco de Previsión Social (BPS) de la República Oriental del Uruguay.
+          Las respuestas generadas son orientativas y no constituyen asesoramiento legal profesional.
+        </p>
+      </section>
+
+      <section>
+        <h2 class="text-lg font-semibold text-slate-800 mb-2">2. Secreto tributario — Art. 47 Código Tributario</h2>
+        <p>
+          En cumplimiento del Artículo 47 del Código Tributario uruguayo, toda información
+          de contribuyentes ingresada en la plataforma es tratada con carácter confidencial.
+          Los datos de identificación (RUT, Cédula de Identidad, montos) son anonimizados
+          automáticamente antes de ser procesados por los modelos de inteligencia artificial.
+          Ningún dato sensible es almacenado en forma identificable en vectores, logs ni registros de sesión.
+        </p>
+      </section>
+
+      <section>
+        <h2 class="text-lg font-semibold text-slate-800 mb-2">3. Protección de datos personales — URCDP Ley 18.331</h2>
+        <p>
+          El tratamiento de datos personales se realiza conforme a la Ley N° 18.331 de Protección
+          de Datos Personales y Acción de Habeas Data y las disposiciones complementarias de la
+          Unidad Reguladora y de Control de Datos Personales (URCDP). El usuario tiene derecho
+          de acceso, rectificación, actualización, inclusión, supresión y bloqueo de sus datos
+          personales. Para ejercer estos derechos, contactar a través de los canales oficiales.
+        </p>
+      </section>
+
+      <section>
+        <h2 class="text-lg font-semibold text-slate-800 mb-2">4. Uso aceptable</h2>
+        <p>
+          El usuario se compromete a utilizar el servicio exclusivamente con fines lícitos y
+          acordes a la normativa vigente. Está prohibido el uso para fines fraudulentos, la
+          carga de documentos que contengan información de terceros sin autorización, y cualquier
+          acción que pueda comprometer la seguridad o integridad del sistema.
+        </p>
+      </section>
+
+      <section>
+        <h2 class="text-lg font-semibold text-slate-800 mb-2">5. Limitaciones de responsabilidad</h2>
+        <p>
+          Las respuestas generadas son de carácter orientativo. Adviser no asume responsabilidad
+          por decisiones tomadas exclusivamente en base a las respuestas del asistente.
+          Se recomienda siempre consultar con un contador o asesor tributario habilitado para
+          situaciones específicas que requieran análisis profesional.
+        </p>
+      </section>
+
+      <section>
+        <h2 class="text-lg font-semibold text-slate-800 mb-2">6. Versionado de estos términos</h2>
+        <p>
+          Estos términos pueden ser actualizados. Cada versión queda identificada por un número
+          de versión semántico. Cuando los términos sean actualizados, se solicitará al usuario
+          su aceptación explícita en el próximo acceso. El historial de consentimientos es
+          registrado con fecha, hora y versión aceptada.
+        </p>
+      </section>
+
+    </div>
+  </div>
+</BaseLayout>
+
+<script>
+  // Fetch current version from API and display it
+  fetch("/api/terms/version")
+    .then((r) => r.json())
+    .then((data: { version?: string }) => {
+      if (!data.version) return;
+      const badge = document.getElementById("version-badge");
+      if (badge) badge.textContent = `v${data.version}`;
+    })
+    .catch(() => {});
+
+  const dateEl = document.getElementById("updated-date");
+  if (dateEl) {
+    dateEl.textContent = new Intl.DateTimeFormat("es-UY", {
+      day: "2-digit",
+      month: "long",
+      year: "numeric",
+    }).format(new Date("2026-07-12"));
+  }
+</script>

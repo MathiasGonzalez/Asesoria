@@ -6,6 +6,7 @@ export interface SessionPayload {
   userId: string;
   tenantId: string;
   email: string;
+  role: string;
 }
 
 const OTP_EXPIRY_SECONDS = 600;    // 10 minutes
@@ -49,7 +50,7 @@ export class AuthService {
   async verifyOtp(
     email: string,
     code: string
-  ): Promise<{ sessionToken: string; isNewUser: boolean }> {
+  ): Promise<{ sessionToken: string; isNewUser: boolean; userId: string }> {
     const now = Math.floor(Date.now() / 1000);
 
     const otpRow = await this.env.DB.prepare(
@@ -85,7 +86,7 @@ export class AuthService {
 
       const userId = generateId();
       await this.env.DB.prepare(
-        "INSERT INTO users (id, email, tenant_id) VALUES (?, ?, ?)"
+        "INSERT INTO users (id, email, tenant_id, role) VALUES (?, ?, ?, 'admin')"
       ).bind(userId, email, tenantId).run();
 
       user = { id: userId, tenant_id: tenantId };
@@ -99,7 +100,7 @@ export class AuthService {
       "INSERT INTO sessions (id, user_id, tenant_id, expires_at) VALUES (?, ?, ?, ?)"
     ).bind(sessionToken, user.id, user.tenant_id, expiresAt).run();
 
-    return { sessionToken, isNewUser };
+    return { sessionToken, isNewUser, userId: user.id };
   }
 
   /** Validates a session token and returns its payload, or null if invalid/expired. */
@@ -107,15 +108,15 @@ export class AuthService {
     const now = Math.floor(Date.now() / 1000);
 
     const row = await this.env.DB.prepare(
-      `SELECT s.tenant_id, u.id AS user_id, u.email
+      `SELECT s.tenant_id, u.id AS user_id, u.email, COALESCE(u.role, 'viewer') AS role
        FROM sessions s
        JOIN users u ON s.user_id = u.id
        WHERE s.id = ? AND s.expires_at > ?`
-    ).bind(token, now).first<{ tenant_id: string; user_id: string; email: string }>();
+    ).bind(token, now).first<{ tenant_id: string; user_id: string; email: string; role: string }>();
 
     if (!row) return null;
 
-    return { userId: row.user_id, tenantId: row.tenant_id, email: row.email };
+    return { userId: row.user_id, tenantId: row.tenant_id, email: row.email, role: row.role };
   }
 
   /** Revokes (deletes) a session token. */
@@ -123,5 +124,16 @@ export class AuthService {
     await this.env.DB.prepare(
       "DELETE FROM sessions WHERE id = ?"
     ).bind(token).run();
+  }
+
+  /**
+   * Records acceptance of a specific terms version for a user.
+   * INSERT OR IGNORE ensures idempotency — re-logins with the same version are silently skipped.
+   */
+  async recordTermsConsent(userId: string, termsVersion: string, ip?: string): Promise<void> {
+    await this.env.DB.prepare(
+      `INSERT OR IGNORE INTO terms_consents (user_id, terms_version, ip)
+       VALUES (?, ?, ?)`
+    ).bind(userId, termsVersion, ip ?? null).run();
   }
 }

@@ -1,5 +1,19 @@
+/** Cloudflare Email Send binding (Workers API, beta). */
+export interface SendEmailBinding {
+  send(message: {
+    to: string;
+    from: string;
+    subject: string;
+    text?: string;
+    html?: string;
+  }): Promise<{ messageId: string }>;
+}
+
 export interface EmailEnv {
-  EMAIL_API_KEY: string;
+  /** Cloudflare Email Send binding – preferred when present. */
+  EMAIL_SEND?: SendEmailBinding;
+  /** Resend API key – used as fallback when EMAIL_SEND is absent. */
+  EMAIL_API_KEY?: string;
   EMAIL_FROM: string;
 }
 
@@ -44,7 +58,22 @@ export class EmailService {
     text: string,
     html: string
   ): Promise<void> {
+    if (this.env.EMAIL_SEND) {
+      await this.env.EMAIL_SEND.send({
+        from: this.env.EMAIL_FROM,
+        to,
+        subject,
+        text,
+        html,
+      });
+      return;
+    }
+
+    // Fallback: Resend API
     const apiKey = this.env.EMAIL_API_KEY;
+    if (!apiKey) {
+      throw new Error("No email provider configured (EMAIL_SEND binding or EMAIL_API_KEY required).");
+    }
     const res = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: {

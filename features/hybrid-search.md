@@ -49,7 +49,7 @@ const allIds = Array.from(new Set([...semIds, ...ftsIds]));
 
 ## Índice Vectorize
 
-- **Nombre:** `uy-tax-index`
+- **Nombre:** `advisor-uy-index`
 - **Dimensiones:** 768 (modelo bge-base-en-v1.5)
 - **Métrica:** cosine similarity
 - **Metadatos almacenados:** `document_id`, `source`

@@ -30,11 +30,11 @@ Returns all flags resolved for the authenticated tenant.
 
 ```sh
 # Disable AI search globally
-wrangler d1 execute uy_tax_db --remote \
+wrangler d1 execute advisor_uy_db --remote \
   --command "INSERT INTO feature_flags (tenant_id, name, enabled) VALUES (NULL, 'ai_search_enabled', 0) ON CONFLICT(tenant_id, name) DO UPDATE SET enabled=0"
 
 # Override for a specific tenant
-wrangler d1 execute uy_tax_db --remote \
+wrangler d1 execute advisor_uy_db --remote \
   --command "INSERT INTO feature_flags (tenant_id, name, enabled) VALUES ('<tenant-uuid>', 'document_ingestion_enabled', 0) ON CONFLICT(tenant_id, name) DO UPDATE SET enabled=0"
 ```
 

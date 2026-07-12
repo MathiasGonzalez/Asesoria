@@ -12,11 +12,53 @@ export class RagService {
   }
 
   /**
-   * Performs a Hybrid Search combining Semantic Vector Search and SQLite FTS5 Keyword Search
+   * Strips FTS5 boolean operators and special characters from a user query
+   * to prevent parse errors when passed to MATCH.
    */
-  public async searchNormative(userQuery: string, limit: number = 3): Promise<string> {
-    // Generate embed of the query using standard bge model (768 dimensions)
-    const embeddingResponse = await this.env.AI.run("@cf/baai/bge-base-en-v1.5", {
+  private static escapeFts5(query: string): string {
+    return query
+      .replace(/["*^()]/g, ' ')
+      .replace(/\b(AND|OR|NOT)\b/gi, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  /**
+   * Splits content on paragraph boundaries (double newline), falling back to
+   * hard character splits for paragraphs that exceed maxSize.
+   */
+  private static chunkContent(content: string, maxSize: number = 1000): string[] {
+    const paragraphs = content.split(/\n{2,}/).map(p => p.trim()).filter(Boolean);
+    const chunks: string[] = [];
+    let current = '';
+
+    for (const para of paragraphs) {
+      const would = current ? current.length + 2 + para.length : para.length;
+      if (would <= maxSize) {
+        current = current ? `${current}\n\n${para}` : para;
+      } else {
+        if (current) chunks.push(current);
+        if (para.length > maxSize) {
+          for (let i = 0; i < para.length; i += maxSize) {
+            chunks.push(para.slice(i, i + maxSize));
+          }
+          current = '';
+        } else {
+          current = para;
+        }
+      }
+    }
+    if (current) chunks.push(current);
+    return chunks.length > 0 ? chunks : [content.slice(0, maxSize)];
+  }
+
+  /**
+   * Hybrid search: semantic (Vectorize bge-m3) + lexical (FTS5).
+   * Pass useHybrid=false to skip FTS5 (controlled via feature flag).
+   */
+  public async searchNormative(userQuery: string, limit: number = 3, useHybrid: boolean = true): Promise<string> {
+    // Multilingual embedding (1024 dims, Spanish + English corpus support)
+    const embeddingResponse = await this.env.AI.run("@cf/baai/bge-m3", {
       text: [userQuery]
     }) as { data: number[][] };
 
@@ -29,13 +71,17 @@ export class RagService {
     });
 
     const semIds = vectorMatches.matches.map((m) => m.id);
+    let ftsIds: string[] = [];
 
-    // Lexical retrieval from D1 FTS5
-    const ftsResults = await this.env.DB.prepare(
-      "SELECT chunk_id FROM document_chunks_fts WHERE document_chunks_fts MATCH ? LIMIT ?"
-    ).bind(userQuery, limit).all<{ chunk_id: string }>();
-
-    const ftsIds = ftsResults.results.map((row) => String(row.chunk_id));
+    if (useHybrid) {
+      const escapedQuery = RagService.escapeFts5(userQuery);
+      if (escapedQuery.length > 0) {
+        const ftsResults = await this.env.DB.prepare(
+          "SELECT chunk_id FROM document_chunks_fts WHERE document_chunks_fts MATCH ? LIMIT ?"
+        ).bind(escapedQuery, limit).all<{ chunk_id: string }>();
+        ftsIds = ftsResults.results.map((row) => String(row.chunk_id));
+      }
+    }
 
     // Combine and fetch full text details
     const allIds = Array.from(new Set([...semIds, ...ftsIds]));
@@ -59,44 +105,36 @@ export class RagService {
       url: string | null;
     }>();
 
-    // Construct Contextualized strings
     return dbRows.results.map((row) => {
-      const source = row.source;
-      const title = row.title;
-      const context = row.context_summary ?? "";
-      const text = row.chunk_text;
       const url = row.url ?? "No provisto";
-      return `[Origen: ${source} | Documento: ${title} | Enlace: ${url}]\nContexto: ${context}\nFragmento: ${text}\n---`;
+      return `[Origen: ${row.source} | Documento: ${row.title} | Enlace: ${url}]\nContexto: ${row.context_summary ?? ""}\nFragmento: ${row.chunk_text}\n---`;
     }).join("\n\n");
   }
 
   /**
-   * Contextual RAG ingestion of new documents
+   * Contextual RAG ingestion of new documents.
+   * Stores only a 500-char preview in `documents.content`; full text lives in chunks.
+   * Batches all Vectorize upserts into a single call at the end.
    */
   public async ingestDocument(id: string, title: string, source: string, content: string, url: string): Promise<void> {
-    // Save master document to D1
+    // Store a preview — full text is already chunked below
     await this.env.DB.prepare(
       "INSERT INTO documents (id, title, source, content, url) VALUES (?, ?, ?, ?, ?)"
-    ).bind(id, title, source, content, url).run();
+    ).bind(id, title, source, content.substring(0, 500), url).run();
 
-    // Simple chunking (500 chars window) - For production consider semantic chunking
-    const chunks: string[] = [];
-    const windowSize = 500;
-    for (let i = 0; i < content.length; i += windowSize) {
-      chunks.push(content.substring(i, i + windowSize));
-    }
+    const chunks = RagService.chunkContent(content);
+    const vectors: { id: string; values: number[]; metadata: Record<string, string> }[] = [];
 
     for (let index = 0; index < chunks.length; index++) {
       const chunkText = chunks[index];
       const chunkId = `${id}_chunk_${index}`;
 
-      // Contextualize the chunk via AI model by situating it in the overall document context
-      const contextualizePrompt = `
-        You are an expert Uruguayan tax assistant. Describe how the following chunk fits within the overall document titled "${title}".
-        Provide a concise context (max 2 sentences) in Spanish to prevent semantic loss during chunking.
-        Overall Document Context: ${content.substring(0, 800)}...
-        Chunk: ${chunkText}
-      `;
+      // Contextualize the chunk by situating it within the overall document
+      const contextualizePrompt =
+        `Eres un experto en normativa tributaria uruguaya. ` +
+        `Describe en 1-2 oraciones en español cómo el siguiente fragmento se ubica dentro del documento "${title}".\n` +
+        `Contexto del documento: ${content.substring(0, 800)}...\n` +
+        `Fragmento: ${chunkText}`;
 
       const aiContextResponse = await this.env.AI.run("@cf/meta/llama-3-8b-instruct", {
         messages: [
@@ -107,25 +145,45 @@ export class RagService {
 
       const contextSummary = aiContextResponse.response ?? "Contexto general regulatorio.";
 
-      // Save chunk database record
       await this.env.DB.prepare(
         "INSERT INTO document_chunks (id, document_id, chunk_text, context_summary) VALUES (?, ?, ?, ?)"
       ).bind(chunkId, id, chunkText, contextSummary).run();
 
-      // Generate vectorized embedding of Contextualized Chunk
+      // Embed using multilingual model (1024 dims, bge-m3)
       const embeddingText = `${contextSummary} ${chunkText}`;
-      const embeddingResponse = await this.env.AI.run("@cf/baai/bge-base-en-v1.5", {
+      const embeddingResponse = await this.env.AI.run("@cf/baai/bge-m3", {
         text: [embeddingText]
       }) as { data: number[][] };
 
-      const chunkVector = embeddingResponse.data[0];
-
-      // Upsert vector to Vectorize index
-      await this.env.VECTORIZE.upsert([{
+      vectors.push({
         id: chunkId,
-        values: chunkVector,
+        values: embeddingResponse.data[0],
         metadata: { document_id: id, source }
-      }]);
+      });
     }
+
+    // Single batch upsert — one round-trip to Vectorize regardless of chunk count
+    if (vectors.length > 0) {
+      await this.env.VECTORIZE.upsert(vectors);
+    }
+  }
+
+  /**
+   * Removes a document and all its chunks from D1 and Vectorize.
+   */
+  public async deleteDocument(id: string): Promise<void> {
+    // Collect chunk IDs before the cascade delete removes them
+    const chunks = await this.env.DB.prepare(
+      "SELECT id FROM document_chunks WHERE document_id = ?"
+    ).bind(id).all<{ id: string }>();
+
+    const chunkIds = chunks.results.map(r => r.id);
+
+    if (chunkIds.length > 0) {
+      await this.env.VECTORIZE.deleteByIds(chunkIds);
+    }
+
+    // DELETE cascades to document_chunks via FK
+    await this.env.DB.prepare("DELETE FROM documents WHERE id = ?").bind(id).run();
   }
 }

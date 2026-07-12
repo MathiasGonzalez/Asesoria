@@ -82,6 +82,7 @@ import BaseLayout from "../layouts/BaseLayout.astro";
   }
 
   const email = sessionStorage.getItem("otp_email");
+  const termsVersion = sessionStorage.getItem("otp_terms_version") ?? "";
   if (!email) {
     // No email in session; redirect to login
     window.location.replace("/login");
@@ -110,7 +111,7 @@ import BaseLayout from "../layouts/BaseLayout.astro";
       const res = await fetch("/api/auth/verify-otp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, code }),
+        body: JSON.stringify({ email, code, termsVersion }),
       });
       const data = await res.json() as {
         ok?: boolean;
@@ -125,8 +126,10 @@ import BaseLayout from "../layouts/BaseLayout.astro";
       }
 
       localStorage.setItem("adviser_session", data.sessionToken);
+      if (termsVersion) localStorage.setItem("adviser_terms_accepted", termsVersion);
       if (email) sessionStorage.setItem("adviser_email", email);
       sessionStorage.removeItem("otp_email");
+      sessionStorage.removeItem("otp_terms_version");
 
       window.location.href = "/app";
 

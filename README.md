@@ -85,7 +85,7 @@ npx wrangler login
 ### 3. Crear base D1
 
 ```bash
-npx wrangler d1 create uy_tax_db
+npx wrangler d1 create advisor_uy_db
 ```
 
 Copiar el `database_id` retornado y reemplazar `REPLACE_WITH_D1_DATABASE_ID` en `wrangler.jsonc`.
@@ -93,7 +93,7 @@ Copiar el `database_id` retornado y reemplazar `REPLACE_WITH_D1_DATABASE_ID` en 
 ### 4. Crear índice Vectorize
 
 ```bash
-npx wrangler vectorize create uy-tax-index --dimensions=768 --metric=cosine
+npx wrangler vectorize create advisor-uy-index --dimensions=768 --metric=cosine
 ```
 
 ### 5. Configurar secretos del Worker
@@ -120,8 +120,8 @@ npm run deploy
 
 ```bash
 # Crear recursos para develop
-npx wrangler d1 create uy_tax_db_develop
-npx wrangler vectorize create uy-tax-index-develop --dimensions=768 --metric=cosine
+npx wrangler d1 create advisor_uy_db_develop
+npx wrangler vectorize create advisor-uy-index-develop --dimensions=768 --metric=cosine
 npx wrangler secret put EMAIL_API_KEY --env develop
 npx wrangler secret put EMAIL_FROM --env develop
 ```

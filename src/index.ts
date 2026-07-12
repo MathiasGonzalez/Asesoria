@@ -2,8 +2,11 @@ import { Hono, type MiddlewareHandler } from "hono";
 import { Anonymizer } from "./services/anonymizer.js";
 import { RagService } from "./services/rag.js";
 import { AuthService } from "./services/auth.js";
-import { EmailService } from "./services/email.js";
+import { EmailService, type SendEmailBinding } from "./services/email.js";
 import { FeatureFlagsService } from "./services/featureFlags.js";
+
+// Bump this string whenever the T&C text changes to force re-acceptance.
+const CURRENT_TERMS_VERSION = "1.0";
 
 interface RateLimit {
   limit(options: { key: string }): Promise<{ success: boolean }>;
@@ -15,7 +18,8 @@ interface Bindings {
   AI: Ai;
   ASSETS: Fetcher;
   RATE_LIMITER: RateLimit;
-  EMAIL_API_KEY: string;
+  EMAIL_SEND?: SendEmailBinding;
+  EMAIL_API_KEY?: string;
   EMAIL_FROM: string;
 }
 
@@ -23,6 +27,7 @@ type Variables = {
   userId: string;
   tenantId: string;
   email: string;
+  role: string;
 };
 
 const app = new Hono<{ Bindings: Bindings; Variables: Variables }>();
@@ -41,17 +46,20 @@ function getSessionToken(authHeader: string | undefined): string | null {
 // ---------------------------------------------------------------------------
 
 app.use("/api/*", async (c, next) => {
-  const ip =
-    c.req.header("CF-Connecting-IP") ??
-    c.req.header("X-Forwarded-For") ??
-    "unknown";
+  // RATE_LIMITER is not available in local dev; skip when undefined
+  if (c.env.RATE_LIMITER) {
+    const ip =
+      c.req.header("CF-Connecting-IP") ??
+      c.req.header("X-Forwarded-For") ??
+      "unknown";
 
-  const { success } = await c.env.RATE_LIMITER.limit({ key: ip });
-  if (!success) {
-    return c.json(
-      { error: "Demasiadas solicitudes. Intentá nuevamente en un momento." },
-      429
-    );
+    const { success } = await c.env.RATE_LIMITER.limit({ key: ip });
+    if (!success) {
+      return c.json(
+        { error: "Demasiadas solicitudes. Intentá nuevamente en un momento." },
+        429
+      );
+    }
   }
 
   return next();
@@ -77,9 +85,32 @@ const requireAuth: MiddlewareHandler<{ Bindings: Bindings; Variables: Variables 
     c.set("userId", session.userId);
     c.set("tenantId", session.tenantId);
     c.set("email", session.email);
+    c.set("role", session.role);
 
     return next();
   };
+
+// Requires the authenticated user to have the 'admin' role.
+const requireAdmin: MiddlewareHandler<{ Bindings: Bindings; Variables: Variables }> =
+  async (c, next) => {
+    if (c.get("role") !== "admin") {
+      return c.json({ error: "Se requieren permisos de administrador." }, 403);
+    }
+    return next();
+  };
+
+// ---------------------------------------------------------------------------
+// POST /api/auth/request-otp
+// Body: { email: string }
+// ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// GET /api/terms/version  – public, returns the active T&C version
+// ---------------------------------------------------------------------------
+
+app.get("/api/terms/version", (c) => {
+  return c.json({ version: CURRENT_TERMS_VERSION });
+});
 
 // ---------------------------------------------------------------------------
 // POST /api/auth/request-otp
@@ -118,23 +149,37 @@ app.post("/api/auth/request-otp", async (c) => {
 // ---------------------------------------------------------------------------
 
 app.post("/api/auth/verify-otp", async (c) => {
-  const body = await c.req.json<{ email?: string; code?: string }>();
+  const body = await c.req.json<{ email?: string; code?: string; termsVersion?: string }>();
   const email = body.email?.trim().toLowerCase();
   const code = body.code?.trim();
+  const termsVersion = body.termsVersion?.trim();
 
   if (!email || !code) {
     return c.json({ error: "Email y código son requeridos." }, 400);
   }
 
+  if (termsVersion !== CURRENT_TERMS_VERSION) {
+    return c.json(
+      { error: "Debés aceptar los Términos y Condiciones vigentes para continuar." },
+      400
+    );
+  }
+
   const authService = new AuthService(c.env);
 
-  let result: { sessionToken: string; isNewUser: boolean };
+  let result: { sessionToken: string; isNewUser: boolean; userId: string };
   try {
     result = await authService.verifyOtp(email, code);
   } catch (err) {
     const message = err instanceof Error ? err.message : "Error de verificación.";
     return c.json({ error: message }, 401);
   }
+
+  const ip =
+    c.req.header("CF-Connecting-IP") ??
+    c.req.header("X-Forwarded-For") ??
+    undefined;
+  await authService.recordTermsConsent(result.userId, termsVersion, ip);
 
   return c.json({
     ok: true,
@@ -171,6 +216,107 @@ app.get("/api/feature-flags", requireAuth, async (c) => {
 });
 
 // ---------------------------------------------------------------------------
+// GET /api/me  (requires auth) – returns authenticated user info
+// ---------------------------------------------------------------------------
+
+app.get("/api/me", requireAuth, (c) => {
+  return c.json({
+    userId: c.get("userId"),
+    tenantId: c.get("tenantId"),
+    email: c.get("email"),
+    role: c.get("role"),
+  });
+});
+
+// ---------------------------------------------------------------------------
+// GET /api/documents  (requires auth) – lists corpus documents with chunk counts
+// ---------------------------------------------------------------------------
+
+app.get("/api/documents", requireAuth, async (c) => {
+  const rows = await c.env.DB.prepare(`
+    SELECT d.id, d.title, d.source, d.url, d.created_at,
+           COUNT(dc.id) AS chunk_count
+    FROM documents d
+    LEFT JOIN document_chunks dc ON dc.document_id = d.id
+    GROUP BY d.id
+    ORDER BY d.created_at DESC
+  `).all<{
+    id: string;
+    title: string;
+    source: string;
+    url: string | null;
+    created_at: number;
+    chunk_count: number;
+  }>();
+
+  return c.json({ documents: rows.results });
+});
+
+// ---------------------------------------------------------------------------
+// DELETE /api/documents/:id  (requires auth + admin)
+// ---------------------------------------------------------------------------
+
+app.delete("/api/documents/:id", requireAuth, requireAdmin, async (c) => {
+  const id = c.req.param("id");
+
+  const exists = await c.env.DB.prepare("SELECT id FROM documents WHERE id = ?")
+    .bind(id)
+    .first<{ id: string }>();
+
+  if (!exists) {
+    return c.json({ error: "Documento no encontrado." }, 404);
+  }
+
+  const rag = new RagService(c.env);
+  await rag.deleteDocument(id);
+
+  return c.json({ ok: true, message: `Documento '${id}' eliminado del corpus.` });
+});
+
+// ---------------------------------------------------------------------------
+// GET /api/history  (requires auth) – paginated query history for the current user
+// ---------------------------------------------------------------------------
+
+app.get("/api/history", requireAuth, async (c) => {
+  const userId = c.get("userId");
+  const page  = Math.max(1, parseInt(c.req.query("page")  ?? "1",  10));
+  const limit = Math.min(50, Math.max(1, parseInt(c.req.query("limit") ?? "20", 10)));
+  const offset = (page - 1) * limit;
+
+  const rows = await c.env.DB.prepare(
+    `SELECT id, original_query, sanitized_query, response, latency_ms, created_at
+     FROM queries
+     WHERE user_id = ?
+     ORDER BY created_at DESC
+     LIMIT ? OFFSET ?`
+  ).bind(userId, limit + 1, offset).all<{
+    id: string;
+    original_query: string;
+    sanitized_query: string;
+    response: string;
+    latency_ms: number;
+    created_at: number;
+  }>();
+
+  const hasMore = rows.results.length > limit;
+  const items   = hasMore ? rows.results.slice(0, limit) : rows.results;
+
+  return c.json({
+    queries: items.map(r => ({
+      id: r.id,
+      originalQuery: r.original_query,
+      sanitizedQuery: r.sanitized_query,
+      response: r.response,
+      latencyMs: r.latency_ms,
+      createdAt: r.created_at,
+    })),
+    page,
+    limit,
+    hasMore,
+  });
+});
+
+// ---------------------------------------------------------------------------
 // GET /api/search  (requires auth)
 // ---------------------------------------------------------------------------
 
@@ -178,6 +324,7 @@ app.get("/api/search", requireAuth, async (c) => {
   const query = c.req.query("q");
   if (!query) return c.json({ error: "El parámetro q es requerido." }, 400);
 
+  const userId   = c.get("userId");
   const tenantId = c.get("tenantId");
 
   const ffService = new FeatureFlagsService(c.env);
@@ -189,11 +336,13 @@ app.get("/api/search", requireAuth, async (c) => {
     );
   }
 
-  const startTime = Date.now();
-  const cleanQuery = Anonymizer.sanitize(query);
+  const useHybrid = flags["hybrid_search_enabled"] !== false;
 
-  const rag = new RagService(c.env);
-  const context = await rag.searchNormative(cleanQuery);
+  const startTime   = Date.now();
+  const cleanQuery  = Anonymizer.sanitize(query);
+
+  const rag     = new RagService(c.env);
+  const context = await rag.searchNormative(cleanQuery, 3, useHybrid);
 
   const prompt = `
 Eres un asistente virtual experto y auditor tributario en Uruguay para DGI y BPS.
@@ -222,19 +371,38 @@ ${cleanQuery}
     ],
   })) as { response?: string };
 
+  const responseText = aiResponse.response ?? "Disculpas, no pudimos procesar la consulta.";
+  const latencyMs    = Date.now() - startTime;
+
+  // Persist to query history (non-blocking — failure must not break the response)
+  c.executionCtx?.waitUntil(
+    c.env.DB.prepare(
+      `INSERT INTO queries (id, user_id, tenant_id, original_query, sanitized_query, response, latency_ms)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`
+    ).bind(
+      crypto.randomUUID(),
+      userId,
+      tenantId,
+      query,
+      cleanQuery,
+      responseText,
+      latencyMs,
+    ).run().catch((err: unknown) => console.error("History write failed:", err))
+  );
+
   return c.json({
-    originalQuery: query,
+    originalQuery:  query,
     sanitizedQuery: cleanQuery,
-    response: aiResponse.response ?? "Disculpas, no pudimos procesar la consulta.",
-    latencyMs: Date.now() - startTime,
+    response:       responseText,
+    latencyMs,
   });
 });
 
 // ---------------------------------------------------------------------------
-// POST /api/ingest  (requires auth)
+// POST /api/ingest  (requires auth + admin)
 // ---------------------------------------------------------------------------
 
-app.post("/api/ingest", requireAuth, async (c) => {
+app.post("/api/ingest", requireAuth, requireAdmin, async (c) => {
   const tenantId = c.get("tenantId");
 
   const ffService = new FeatureFlagsService(c.env);
@@ -257,6 +425,26 @@ app.post("/api/ingest", requireAuth, async (c) => {
   const { id, title, source, content, url } = body;
   if (!id || !title || !source || !content) {
     return c.json({ error: "Faltan campos requeridos: id, title, source, content." }, 400);
+  }
+
+  // Prevent runaway CPU usage from huge documents processed chunk-by-chunk
+  const MAX_CONTENT_CHARS = 20_000;
+  if (content.length > MAX_CONTENT_CHARS) {
+    return c.json(
+      { error: `El contenido excede el límite de ${MAX_CONTENT_CHARS.toLocaleString("es-UY")} caracteres. Dividí el documento en partes más pequeñas.` },
+      413
+    );
+  }
+
+  // Check for duplicate ID before processing
+  const existing = await c.env.DB.prepare("SELECT id FROM documents WHERE id = ?")
+    .bind(id)
+    .first<{ id: string }>();
+  if (existing) {
+    return c.json(
+      { error: `Ya existe un documento con id '${id}'. Eliminalo primero o usá un id distinto.` },
+      409
+    );
   }
 
   const rag = new RagService(c.env);

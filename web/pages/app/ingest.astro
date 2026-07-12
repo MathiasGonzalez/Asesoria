@@ -85,6 +85,15 @@ import AppLayout from "../../layouts/AppLayout.astro";
     <a href="/app" class="hover:text-blue-600 transition-colors underline underline-offset-2">
       ← Volver al asistente
     </a>
+    <a href="/app/corpus" class="hover:text-blue-600 transition-colors underline underline-offset-2">
+      Ver corpus →
+    </a>
+  </div>
+
+  <!-- Non-admin notice (shown by JS if needed) -->
+  <div id="admin-notice" class="hidden text-xs rounded-xl px-4 py-3"
+    style="background: rgba(251,191,36,0.1); border: 1px solid rgba(251,191,36,0.3); color: #92400e;">
+    Solo los administradores del tenant pueden ingestar documentos. Contactá al administrador de tu organización.
   </div>
 </AppLayout>
 
@@ -92,6 +101,20 @@ import AppLayout from "../../layouts/AppLayout.astro";
   const form     = document.getElementById("ingest-form") as HTMLFormElement | null;
   const btn      = document.getElementById("ingest-btn") as HTMLButtonElement | null;
   const alertDiv = document.getElementById("ingest-alert") as HTMLDivElement | null;
+  const adminNotice = document.getElementById("admin-notice") as HTMLDivElement | null;
+
+  // Check admin role — disable form for non-admins
+  (async () => {
+    const session = localStorage.getItem("adviser_session") ?? "";
+    const res = await fetch("/api/me", { headers: { Authorization: "Bearer " + session } });
+    if (res.ok) {
+      const me = await res.json() as { role?: string };
+      if (me.role !== "admin") {
+        form?.querySelectorAll("input,select,textarea,button").forEach(el => (el as HTMLElement).setAttribute("disabled", ""));
+        adminNotice?.classList.remove("hidden");
+      }
+    }
+  })();
 
   function showAlert(message: string, type: "success" | "error") {
     if (!alertDiv) return;
@@ -137,13 +160,17 @@ import AppLayout from "../../layouts/AppLayout.astro";
         window.location.replace("/login?login=expired");
         return;
       }
+      if (res.status === 403) {
+        showAlert("No tenés permisos de administrador para ingestar documentos.", "error");
+        return;
+      }
 
       const data = await res.json() as { success?: boolean; message?: string; error?: string };
       if (res.ok && data.success) {
         showAlert(`✓ ${data.message}`, "success");
         form?.reset();
       } else {
-        showAlert(`Error: ${data.error ?? "Respuesta inesperada del servidor."}`, "error");
+        showAlert(`${data.error ?? "Respuesta inesperada del servidor."}`, "error");
       }
     } catch {
       showAlert("Error de red al conectar con el servidor.", "error");

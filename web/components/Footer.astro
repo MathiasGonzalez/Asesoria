@@ -1,29 +1,49 @@
 ---
 ---
-<footer class="bg-slate-950 text-slate-400 py-12 px-6">
-  <div class="max-w-6xl mx-auto">
-    <div class="flex flex-col sm:flex-row justify-between items-start gap-8 pb-8 border-b border-slate-800">
-      <div class="flex flex-col gap-2">
-        <span class="font-bold text-white text-lg tracking-tight">Adviser</span>
-        <p class="text-xs max-w-xs leading-relaxed">
+<footer style="background-color: #090c14; color: #8892a4;">
+  <!-- Gold top line -->
+  <div style="height: 1px; background: linear-gradient(90deg, transparent 0%, rgba(200,153,42,0.5) 50%, transparent 100%);"></div>
+  <div class="max-w-6xl mx-auto px-6 py-14">
+    <div class="flex flex-col sm:flex-row justify-between items-start gap-10 pb-10"
+      style="border-bottom: 1px solid rgba(255,255,255,0.07);">
+
+      <!-- Brand + description -->
+      <div class="flex flex-col gap-3 max-w-xs">
+        <div class="flex items-center gap-2">
+          <span class="font-bold text-white text-xl tracking-tight" style="font-family: var(--font-display), Georgia, serif; letter-spacing: -0.02em;">
+            Adviser
+          </span>
+          <span style="color: #c8992a; font-size: 1.25rem; line-height: 1;">·</span>
+        </div>
+        <p class="text-xs leading-relaxed" style="color: rgba(136,146,164,0.8);">
           Asesoría regulatoria inteligente para Uruguay. Cumplimiento con el secreto tributario y normativa DGI / BPS.
         </p>
       </div>
-      <div class="flex flex-wrap gap-3">
-        <span class="inline-flex items-center gap-1.5 text-xs bg-slate-800 text-slate-300 px-3 py-1.5 rounded-full border border-slate-700">
+
+      <!-- Compliance badges -->
+      <div class="flex flex-wrap gap-2.5">
+        <span class="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full"
+          style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: #a5b4fc;">
           Art. 47 Cód. Tributario
         </span>
-        <span class="inline-flex items-center gap-1.5 text-xs bg-slate-800 text-slate-300 px-3 py-1.5 rounded-full border border-slate-700">
+        <span class="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full"
+          style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: #6ee7b7;">
           URCDP Ley 18.331
         </span>
-        <span class="inline-flex items-center gap-1.5 text-xs bg-slate-800 text-slate-300 px-3 py-1.5 rounded-full border border-slate-700">
+        <span class="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full"
+          style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: #fcd34d;">
           Cloudflare Edge
         </span>
       </div>
     </div>
-    <div class="flex flex-col sm:flex-row justify-between items-center gap-3 pt-6 text-xs">
+
+    <div class="flex flex-col sm:flex-row justify-between items-center gap-3 pt-6 text-xs"
+      style="color: rgba(136,146,164,0.5);">
       <p>© {new Date().getFullYear()} Adviser · Uruguay</p>
-      <p>Construido sobre <span class="text-slate-300">Cloudflare Workers · D1 · Vectorize · Workers AI</span></p>
+      <p>
+        Construido sobre
+        <span style="color: rgba(136,146,164,0.75);">Cloudflare Workers · D1 · Vectorize · Workers AI</span>
+      </p>
     </div>
   </div>
 </footer>

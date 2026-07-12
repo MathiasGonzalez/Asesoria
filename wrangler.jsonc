@@ -12,16 +12,20 @@
   "d1_databases": [
     {
       "binding": "DB",
-      "database_name": "uy_tax_db",
+      "database_name": "advisor_uy_db",
       "database_id": "REPLACE_WITH_D1_DATABASE_ID",
       "migrations_dir": "./migrations"
     }
   ],
 
+  // Vectorize semantic index.
+  // Create with: npx wrangler vectorize create advisor-uy-index --dimensions=1024 --metric=cosine
+  // Model: @cf/baai/bge-m3 (multilingual, 1024 dims) — supports Spanish legal corpus.
+  // NOTE: if upgrading from bge-base-en-v1.5 (768 dims), recreate the index and re-ingest all documents.
   "vectorize": [
     {
       "binding": "VECTORIZE",
-      "index_name": "uy-tax-index"
+      "index_name": "advisor-uy-index"
     }
   ],
 
@@ -42,9 +46,18 @@
     }
   ],
 
+  // Cloudflare Email Send binding (beta).
+  // Add `allowed_destination_addresses` to restrict recipients, or
+  // `default_from` to pin the sender.
+  "send_email": [
+    {
+      "name": "EMAIL_SEND"
+    }
+  ],
+
   // Secrets (set via `wrangler secret put <NAME>`):
-  //   EMAIL_API_KEY  – Resend API key (re:...key...)
   //   EMAIL_FROM     – Verified sender address, e.g. "noreply@yourdomain.com"
+  //   EMAIL_API_KEY  – Resend API key (fallback, only needed without EMAIL_SEND binding)
 
   // -------------------------------------------------------------------------
   // Develop environment – separate Worker + D1 + Vectorize index
@@ -56,7 +69,7 @@
       "d1_databases": [
         {
           "binding": "DB",
-          "database_name": "uy_tax_db_develop",
+          "database_name": "advisor_uy_db_develop",
           "database_id": "REPLACE_WITH_DEVELOP_D1_DATABASE_ID",
           "migrations_dir": "./migrations"
         }
@@ -65,7 +78,7 @@
       "vectorize": [
         {
           "binding": "VECTORIZE",
-          "index_name": "uy-tax-index-develop"
+          "index_name": "advisor-uy-index-develop"
         }
       ],
 
@@ -81,8 +94,8 @@
       ]
 
       // Secrets for develop are set with:
-      //   wrangler secret put EMAIL_API_KEY --env develop
       //   wrangler secret put EMAIL_FROM    --env develop
+      //   wrangler secret put EMAIL_API_KEY --env develop  (fallback, without EMAIL_SEND binding)
     }
   }
 }

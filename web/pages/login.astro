@@ -6,69 +6,221 @@ const showExpired  = Astro.url.searchParams.get("login") === "expired";
 ---
 
 <BaseLayout title="Iniciar sesión">
-  <nav class="bg-white border-b border-slate-200 px-6 py-3 flex items-center justify-between sticky top-0 z-10 shadow-sm">
-    <a href="/" class="font-extrabold text-slate-900 text-lg tracking-tight">Adviser<span class="text-blue-600">.</span></a>
+  <nav style="background: rgba(255,255,255,0.85); backdrop-filter: blur(20px) saturate(180%); border-bottom: 1px solid rgba(0,0,0,0.08);" class="px-6 py-3.5 flex items-center justify-between sticky top-0 z-10">
+    <a href="/" class="font-bold text-xl tracking-tight" style="font-family: var(--font-display), Georgia, serif; color: #0f1117; letter-spacing: -0.03em;">
+      Adviser<span style="color: #c8992a;">.</span>
+    </a>
   </nav>
 
-  <div class="min-h-[calc(100vh-57px)] flex items-center justify-center px-4 py-12 bg-slate-50">
-    <div class="w-full max-w-sm">
-      <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-8 flex flex-col gap-6">
+  <!-- Background with subtle pattern -->
+  <div class="min-h-[calc(100vh-57px)] flex items-center justify-center px-4 py-12 relative" style="background-color: #f6f5f2;">
+    <!-- Decorative blobs -->
+    <div class="absolute top-0 left-0 w-96 h-96 pointer-events-none" aria-hidden="true"
+      style="background: radial-gradient(circle, rgba(99,102,241,0.07) 0%, transparent 70%);"></div>
+    <div class="absolute bottom-0 right-0 w-80 h-80 pointer-events-none" aria-hidden="true"
+      style="background: radial-gradient(circle, rgba(200,153,42,0.06) 0%, transparent 70%);"></div>
+
+    <div class="relative w-full max-w-sm">
+      <!-- Brand mark above card -->
+      <div class="text-center mb-8">
+        <span class="font-bold text-2xl" style="font-family: var(--font-display), Georgia, serif; color: #0f1117; letter-spacing: -0.03em;">Adviser<span style="color: #c8992a;">.</span></span>
+        <p class="text-sm mt-1" style="color: #6b7280;">Plataforma tributaria inteligente</p>
+      </div>
+
+      <div class="flex flex-col gap-6 p-8" style="background: white; border-radius: 1.25rem; border: 1px solid rgba(0,0,0,0.07); box-shadow: 0 4px 24px rgba(0,0,0,0.06), 0 1px 4px rgba(0,0,0,0.04);">
 
         <!-- Header -->
-        <div class="text-center flex flex-col gap-1">
-          <div class="w-12 h-12 rounded-xl bg-blue-100 flex items-center justify-center mx-auto mb-2">
-            <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 0 1-2.25 2.25h-15a2.25 2.25 0 0 1-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25m19.5 0v.243a2.25 2.25 0 0 1-1.07 1.916l-7.5 4.615a2.25 2.25 0 0 1-2.36 0L3.32 8.91a2.25 2.25 0 0 1-1.07-1.916V6.75" />
-            </svg>
-          </div>
-          <h1 class="text-xl font-bold text-slate-800">Acceder</h1>
-          <p class="text-sm text-slate-500">Ingresá tu email para recibir un código de acceso.</p>
+        <div class="flex flex-col gap-1">
+          <h1 class="text-xl font-bold" style="color: #0f1117; letter-spacing: -0.02em;">Iniciar sesión</h1>
+          <p class="text-sm" style="color: #6b7280;">Ingresá tu email para recibir un código de acceso.</p>
         </div>
 
         <!-- Alerts -->
         {showRequired && (
-          <div class="bg-amber-50 border border-amber-200 text-amber-800 text-xs rounded-lg px-4 py-3">
+          <div class="text-xs rounded-xl px-4 py-3" style="background: rgba(251,191,36,0.1); border: 1px solid rgba(251,191,36,0.3); color: #92400e;">
             Necesitás iniciar sesión para acceder al asistente.
           </div>
         )}
         {showExpired && (
-          <div class="bg-amber-50 border border-amber-200 text-amber-800 text-xs rounded-lg px-4 py-3">
+          <div class="text-xs rounded-xl px-4 py-3" style="background: rgba(251,191,36,0.1); border: 1px solid rgba(251,191,36,0.3); color: #92400e;">
             Tu sesión expiró. Por favor iniciá sesión nuevamente.
           </div>
         )}
 
-        <div id="error-alert" class="hidden bg-red-50 border border-red-200 text-red-700 text-xs rounded-lg px-4 py-3"></div>
+        <div id="error-alert" class="hidden text-xs rounded-xl px-4 py-3" style="background: rgba(239,68,68,0.07); border: 1px solid rgba(239,68,68,0.25); color: #b91c1c;"></div>
 
         <!-- Form -->
         <form id="otp-form" class="flex flex-col gap-4">
-          <div class="flex flex-col gap-1">
-            <label for="email" class="text-xs font-medium text-slate-600">Email</label>
+          <div class="flex flex-col gap-1.5">
+            <label for="email" class="text-xs font-semibold" style="color: #374151; letter-spacing: 0.02em;">Email</label>
             <input
               type="email"
               id="email"
               name="email"
-              placeholder="tu@email.com"
+              placeholder="tu@empresa.com.uy"
               autocomplete="email"
               required
-              class="rounded-lg border border-slate-300 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              class="rounded-xl px-4 py-3 text-sm transition-all focus:outline-none"
+              style="border: 1.5px solid rgba(0,0,0,0.12); color: #0f1117; background: #fafaf9;"
+              onfocus="this.style.borderColor='#4f46e5'; this.style.boxShadow='0 0 0 3px rgba(79,70,229,0.1)';"
+              onblur="this.style.borderColor='rgba(0,0,0,0.12)'; this.style.boxShadow='none';"
             />
           </div>
+
+          <label class="flex items-start gap-3 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              id="terms-accept"
+              name="terms-accept"
+              required
+              class="mt-0.5 h-4 w-4 shrink-0 rounded"
+              style="accent-color: #4f46e5;"
+            />
+            <span class="text-xs" style="color: #6b7280;">
+              He leído y acepto los
+              <button
+                type="button"
+                id="open-terms-modal"
+                class="font-medium focus:outline-none"
+                style="color: #4f46e5;"
+                onmouseover="this.style.textDecoration='underline'"
+                onmouseout="this.style.textDecoration='none'"
+              >
+                Términos y Condiciones
+              </button>
+              <span id="terms-version" class="font-mono ml-0.5" style="color: #9ca3af;"></span>
+            </span>
+          </label>
 
           <button
             type="submit"
             id="submit-btn"
-            class="bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white font-medium rounded-lg px-6 py-2.5 text-sm transition-colors"
+            class="text-white font-semibold rounded-xl px-6 py-3 text-sm transition-all disabled:opacity-60"
+            style="background: #4f46e5; box-shadow: 0 2px 12px rgba(79,70,229,0.35);"
+            onmouseover="this.style.background='#4338ca'; this.style.boxShadow='0 4px 18px rgba(79,70,229,0.5)'; this.style.transform='translateY(-1px)';"
+            onmouseout="this.style.background='#4f46e5'; this.style.boxShadow='0 2px 12px rgba(79,70,229,0.35)'; this.style.transform='';"
           >
             Enviar código
           </button>
         </form>
 
-        <p class="text-center text-xs text-slate-400">
+        <p class="text-center text-xs" style="color: #9ca3af;">
           La primera vez que iniciás sesión se crea tu cuenta automáticamente.
         </p>
       </div>
+
+      <!-- Security note below card -->
+      <div class="flex items-center justify-center gap-1.5 mt-6 text-xs" style="color: #9ca3af;">
+        <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 1a4.5 4.5 0 00-4.5 4.5V9H5a2 2 0 00-2 2v6a2 2 0 002 2h10a2 2 0 002-2v-6a2 2 0 00-2-2h-.5V5.5A4.5 4.5 0 0010 1zm3 8V5.5a3 3 0 10-6 0V9h6z" clip-rule="evenodd"/></svg>
+        Acceso seguro · Datos anonimizados antes del procesamiento
+      </div>
     </div>
   </div>
+
+  <!-- Terms & Conditions Modal -->
+  <div
+    id="terms-modal"
+    class="fixed inset-0 z-50 hidden items-center justify-center p-4"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="terms-modal-title"
+  >
+    <!-- Backdrop -->
+    <div id="terms-backdrop" class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"></div>
+
+    <!-- Panel -->
+      <div class="relative w-full max-w-2xl max-h-[85vh] flex flex-col overflow-hidden" style="background: white; border-radius: 1.25rem; box-shadow: 0 20px 60px rgba(0,0,0,0.18);">
+
+        <!-- Header -->
+        <div class="flex items-center justify-between px-6 py-4 shrink-0" style="border-bottom: 1px solid rgba(0,0,0,0.07);">
+          <div class="flex items-center gap-3">
+            <h2 id="terms-modal-title" class="text-base font-bold" style="color: #0f1117;">Términos y Condiciones</h2>
+            <span id="terms-modal-version" class="text-xs font-mono rounded-full px-2.5 py-0.5" style="background: #f3f4f6; color: #6b7280; border: 1px solid rgba(0,0,0,0.07);"></span>
+          </div>
+          <button
+            id="close-terms-modal"
+            type="button"
+            class="rounded-lg p-1.5 transition-colors focus:outline-none"
+            style="color: #9ca3af;"
+            onmouseover="this.style.color='#374151'; this.style.background='#f3f4f6';"
+            onmouseout="this.style.color='#9ca3af'; this.style.background='transparent';"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+
+      <!-- Scrollable content -->
+      <div class="overflow-y-auto px-6 py-6 space-y-6 text-sm leading-relaxed text-slate-700">
+
+        <section>
+          <h3 class="text-sm font-semibold text-slate-800 mb-1">1. Objeto del servicio</h3>
+          <p>Adviser es una plataforma de asesoramiento tributario asistido por inteligencia artificial,
+          fundamentado exclusivamente en normativa oficial de la Dirección General Impositiva (DGI)
+          y el Banco de Previsión Social (BPS) de la República Oriental del Uruguay.
+          Las respuestas generadas son orientativas y no constituyen asesoramiento legal profesional.</p>
+        </section>
+
+        <section>
+          <h3 class="text-sm font-semibold text-slate-800 mb-1">2. Secreto tributario — Art. 47 Código Tributario</h3>
+          <p>En cumplimiento del Artículo 47 del Código Tributario uruguayo, toda información
+          de contribuyentes ingresada en la plataforma es tratada con carácter confidencial.
+          Los datos de identificación (RUT, Cédula de Identidad, montos) son anonimizados
+          automáticamente antes de ser procesados por los modelos de inteligencia artificial.
+          Ningún dato sensible es almacenado en forma identificable en vectores, logs ni registros de sesión.</p>
+        </section>
+
+        <section>
+          <h3 class="text-sm font-semibold text-slate-800 mb-1">3. Protección de datos personales — URCDP Ley 18.331</h3>
+          <p>El tratamiento de datos personales se realiza conforme a la Ley N° 18.331 de Protección
+          de Datos Personales y Acción de Habeas Data y las disposiciones complementarias de la
+          Unidad Reguladora y de Control de Datos Personales (URCDP). El usuario tiene derecho
+          de acceso, rectificación, actualización, inclusión, supresión y bloqueo de sus datos
+          personales.</p>
+        </section>
+
+        <section>
+          <h3 class="text-sm font-semibold text-slate-800 mb-1">4. Uso aceptable</h3>
+          <p>El usuario se compromete a utilizar el servicio exclusivamente con fines lícitos y
+          acordes a la normativa vigente. Está prohibido el uso para fines fraudulentos, la
+          carga de documentos que contengan información de terceros sin autorización, y cualquier
+          acción que pueda comprometer la seguridad o integridad del sistema.</p>
+        </section>
+
+        <section>
+          <h3 class="text-sm font-semibold text-slate-800 mb-1">5. Limitaciones de responsabilidad</h3>
+          <p>Las respuestas generadas son de carácter orientativo. Adviser no asume responsabilidad
+          por decisiones tomadas exclusivamente en base a las respuestas del asistente.
+          Se recomienda siempre consultar con un contador o asesor tributario habilitado para
+          situaciones específicas que requieran análisis profesional.</p>
+        </section>
+
+        <section>
+          <h3 class="text-sm font-semibold text-slate-800 mb-1">6. Versionado de estos términos</h3>
+          <p>Estos términos pueden ser actualizados. Cada versión queda identificada por un número
+          de versión semántico. Cuando los términos sean actualizados, se solicitará al usuario
+          su aceptación explícita en el próximo acceso.</p>
+        </section>
+
+      </div>
+
+      <!-- Footer -->
+      <div class="px-6 py-4 shrink-0 flex justify-end" style="border-top: 1px solid rgba(0,0,0,0.07);">
+        <button
+          id="close-terms-modal-footer"
+          type="button"
+          class="text-white font-semibold rounded-xl px-6 py-2.5 text-sm transition-all"
+          style="background: #4f46e5; box-shadow: 0 2px 10px rgba(79,70,229,0.35);"
+          onmouseover="this.style.background='#4338ca';"
+          onmouseout="this.style.background='#4f46e5';"
+        >
+          Entendido
+        </button>
+      </div>
+    </div>
+  </div>
+
 </BaseLayout>
 
 <script>
@@ -76,10 +228,59 @@ const showExpired  = Astro.url.searchParams.get("login") === "expired";
   const btn  = document.getElementById("submit-btn") as HTMLButtonElement | null;
   const err  = document.getElementById("error-alert") as HTMLDivElement | null;
 
+  // ── Terms modal ──────────────────────────────────────────────────────────
+  const modal    = document.getElementById("terms-modal") as HTMLDivElement;
+  const backdrop = document.getElementById("terms-backdrop") as HTMLDivElement;
+
+  function openModal() {
+    modal.classList.remove("hidden");
+    modal.classList.add("flex");
+    document.body.style.overflow = "hidden";
+  }
+
+  function closeModal() {
+    modal.classList.add("hidden");
+    modal.classList.remove("flex");
+    document.body.style.overflow = "";
+  }
+
+  document.getElementById("open-terms-modal")?.addEventListener("click", openModal);
+  document.getElementById("close-terms-modal")?.addEventListener("click", closeModal);
+  document.getElementById("close-terms-modal-footer")?.addEventListener("click", closeModal);
+  backdrop?.addEventListener("click", closeModal);
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeModal(); });
+  // ────────────────────────────────────────────────────────────────────────
+
   // Redirect already-authenticated users directly to the app
   if (localStorage.getItem("adviser_session")) {
     window.location.replace("/app");
   }
+
+  // ── Terms version ────────────────────────────────────────────────────────
+  let currentTermsVersion = "";
+
+  fetch("/api/terms/version")
+    .then((r) => r.json())
+    .then((data: { version?: string }) => {
+      if (!data.version) return;
+      currentTermsVersion = data.version;
+
+      const versionLabel = document.getElementById("terms-version");
+      if (versionLabel) versionLabel.textContent = `(v${data.version})`;
+
+      const modalVersion = document.getElementById("terms-modal-version");
+      if (modalVersion) modalVersion.textContent = `v${data.version}`;
+
+      // Pre-check if the user already accepted this version in a previous session
+      const checkbox = document.getElementById("terms-accept") as HTMLInputElement | null;
+      if (checkbox && localStorage.getItem("adviser_terms_accepted") === data.version) {
+        checkbox.checked = true;
+      }
+    })
+    .catch(() => {
+      // Non-blocking: version label stays empty; backend validates on verify
+    });
+  // ────────────────────────────────────────────────────────────────────────
 
   form?.addEventListener("submit", async (e) => {
     e.preventDefault();
@@ -106,6 +307,7 @@ const showExpired  = Astro.url.searchParams.get("login") === "expired";
 
       // Redirect to verify page carrying the email in sessionStorage
       sessionStorage.setItem("otp_email", email);
+      sessionStorage.setItem("otp_terms_version", currentTermsVersion);
       window.location.href = "/verify";
 
     } catch {

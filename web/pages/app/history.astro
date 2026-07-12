@@ -1,0 +1,211 @@
+---
+import AppLayout from "../../layouts/AppLayout.astro";
+---
+
+<AppLayout title="Historial de Consultas">
+  <div class="flex flex-col gap-1.5">
+    <h1 class="text-2xl font-bold" style="color: #0f1117; letter-spacing: -0.02em;">Historial de consultas</h1>
+    <p class="text-sm" style="color: #6b7280; line-height: 1.6;">
+      Registro de todas tus consultas realizadas al asistente regulatorio.
+    </p>
+  </div>
+
+  <!-- Loading skeleton -->
+  <div id="loading" class="flex flex-col gap-3">
+    {Array.from({ length: 3 }).map(() => (
+      <div class="rounded-xl p-5 animate-pulse" style="background: white; border: 1px solid rgba(0,0,0,0.07);">
+        <div class="h-4 rounded w-2/3 mb-3" style="background: #f3f4f6;"></div>
+        <div class="h-3 rounded w-1/3" style="background: #f3f4f6;"></div>
+      </div>
+    ))}
+  </div>
+
+  <!-- Empty state -->
+  <div id="empty-state" class="hidden text-center py-16 flex flex-col items-center gap-3">
+    <svg class="w-10 h-10" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="color: #d1d5db;">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
+    </svg>
+    <p class="text-sm font-medium" style="color: #6b7280;">Aún no realizaste consultas.</p>
+    <a href="/app" class="text-sm font-medium transition-colors" style="color: #4f46e5;"
+      onmouseover="this.style.color='#4338ca'" onmouseout="this.style.color='#4f46e5'">
+      Ir al asistente →
+    </a>
+  </div>
+
+  <!-- Query list -->
+  <div id="query-list" class="hidden flex flex-col gap-3"></div>
+
+  <!-- Pagination -->
+  <div id="pagination" class="hidden flex gap-3 items-center justify-center py-2">
+    <button id="prev-btn" class="text-xs font-medium px-4 py-2 rounded-lg transition-colors disabled:opacity-40"
+      style="border: 1px solid rgba(0,0,0,0.1); color: #374151;"
+      onmouseover="if(!this.disabled)this.style.background='rgba(0,0,0,0.04)'"
+      onmouseout="this.style.background='transparent'">
+      ← Anterior
+    </button>
+    <span id="page-info" class="text-xs" style="color: #9ca3af;"></span>
+    <button id="next-btn" class="text-xs font-medium px-4 py-2 rounded-lg transition-colors disabled:opacity-40"
+      style="border: 1px solid rgba(0,0,0,0.1); color: #374151;"
+      onmouseover="if(!this.disabled)this.style.background='rgba(0,0,0,0.04)'"
+      onmouseout="this.style.background='transparent'">
+      Siguiente →
+    </button>
+  </div>
+</AppLayout>
+
+<!-- Query detail modal -->
+<div id="modal-overlay" class="fixed inset-0 z-50 hidden items-center justify-center px-4"
+  style="background: rgba(0,0,0,0.4); backdrop-filter: blur(4px);">
+  <div class="w-full max-w-2xl max-h-[80vh] overflow-y-auto rounded-2xl p-6 flex flex-col gap-4"
+    style="background: white; box-shadow: 0 20px 60px rgba(0,0,0,0.15);">
+    <div class="flex justify-between items-start gap-4">
+      <h2 class="font-semibold text-base" style="color: #0f1117;" id="modal-query"></h2>
+      <button id="modal-close" class="text-xs px-3 py-1.5 rounded-lg flex-shrink-0"
+        style="color: #6b7280; border: 1px solid rgba(0,0,0,0.1);">Cerrar</button>
+    </div>
+    <div class="text-xs" style="color: #9ca3af;" id="modal-meta"></div>
+    <div id="modal-sanitized" class="hidden text-xs rounded-xl px-4 py-3"
+      style="background: rgba(251,191,36,0.1); border: 1px solid rgba(251,191,36,0.3); color: #92400e;"></div>
+    <div class="text-sm leading-relaxed whitespace-pre-line pt-2" style="color: #374151; border-top: 1px solid rgba(0,0,0,0.06);" id="modal-response"></div>
+  </div>
+</div>
+
+<script>
+  const LIMIT = 20;
+  let currentPage = 1;
+  let hasMore = false;
+
+  const loadingEl    = document.getElementById("loading") as HTMLDivElement;
+  const emptyEl      = document.getElementById("empty-state") as HTMLDivElement;
+  const listEl       = document.getElementById("query-list") as HTMLDivElement;
+  const paginationEl = document.getElementById("pagination") as HTMLDivElement;
+  const prevBtn      = document.getElementById("prev-btn") as HTMLButtonElement;
+  const nextBtn      = document.getElementById("next-btn") as HTMLButtonElement;
+  const pageInfo     = document.getElementById("page-info") as HTMLSpanElement;
+
+  const modalOverlay  = document.getElementById("modal-overlay") as HTMLDivElement;
+  const modalClose    = document.getElementById("modal-close") as HTMLButtonElement;
+  const modalQuery    = document.getElementById("modal-query") as HTMLHeadingElement;
+  const modalMeta     = document.getElementById("modal-meta") as HTMLDivElement;
+  const modalSanitized = document.getElementById("modal-sanitized") as HTMLDivElement;
+  const modalResponse = document.getElementById("modal-response") as HTMLDivElement;
+
+  function formatDate(ts: number): string {
+    return new Date(ts * 1000).toLocaleString("es-UY", {
+      day: "2-digit", month: "short", year: "numeric",
+      hour: "2-digit", minute: "2-digit"
+    });
+  }
+
+  function openModal(item: {
+    originalQuery: string;
+    sanitizedQuery: string;
+    response: string;
+    latencyMs: number;
+    createdAt: number;
+  }) {
+    modalQuery.textContent = item.originalQuery;
+    modalMeta.textContent  = `${formatDate(item.createdAt)} · ${item.latencyMs} ms`;
+    if (item.originalQuery !== item.sanitizedQuery) {
+      modalSanitized.textContent = `Consulta anonimizada antes del procesamiento: "${item.sanitizedQuery}"`;
+      modalSanitized.classList.remove("hidden");
+    } else {
+      modalSanitized.classList.add("hidden");
+    }
+    modalResponse.textContent = item.response;
+    modalOverlay.classList.remove("hidden");
+    modalOverlay.classList.add("flex");
+    document.body.style.overflow = "hidden";
+  }
+
+  function closeModal() {
+    modalOverlay.classList.add("hidden");
+    modalOverlay.classList.remove("flex");
+    document.body.style.overflow = "";
+  }
+
+  modalClose?.addEventListener("click", closeModal);
+  modalOverlay?.addEventListener("click", (e) => { if (e.target === modalOverlay) closeModal(); });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeModal(); });
+
+  async function loadPage(page: number) {
+    loadingEl.classList.remove("hidden");
+    listEl.classList.add("hidden");
+    emptyEl.classList.add("hidden");
+    paginationEl.classList.add("hidden");
+
+    const session = localStorage.getItem("adviser_session") ?? "";
+    const res = await fetch(`/api/history?page=${page}&limit=${LIMIT}`, {
+      headers: { Authorization: "Bearer " + session },
+    });
+
+    if (res.status === 401) {
+      localStorage.removeItem("adviser_session");
+      window.location.replace("/login?login=expired");
+      return;
+    }
+
+    loadingEl.classList.add("hidden");
+
+    if (!res.ok) { emptyEl.classList.remove("hidden"); return; }
+
+    const data = await res.json() as {
+      queries: Array<{
+        id: string;
+        originalQuery: string;
+        sanitizedQuery: string;
+        response: string;
+        latencyMs: number;
+        createdAt: number;
+      }>;
+      page: number;
+      hasMore: boolean;
+    };
+
+    currentPage = data.page;
+    hasMore     = data.hasMore;
+
+    if (data.queries.length === 0 && page === 1) {
+      emptyEl.classList.remove("hidden");
+      return;
+    }
+
+    listEl.innerHTML = "";
+    for (const item of data.queries) {
+      const card = document.createElement("button");
+      card.type  = "button";
+      card.className = "text-left w-full rounded-xl p-5 flex flex-col gap-2 transition-all";
+      card.style.cssText = "background: white; border: 1px solid rgba(0,0,0,0.07); box-shadow: 0 2px 8px rgba(0,0,0,0.03); cursor: pointer;";
+      card.onmouseover = () => { card.style.borderColor = "rgba(79,70,229,0.25)"; card.style.boxShadow = "0 4px 16px rgba(79,70,229,0.08)"; };
+      card.onmouseout  = () => { card.style.borderColor = "rgba(0,0,0,0.07)"; card.style.boxShadow = "0 2px 8px rgba(0,0,0,0.03)"; };
+
+      const preview = item.response.length > 120 ? item.response.slice(0, 120) + "…" : item.response;
+      card.innerHTML = `
+        <p class="text-sm font-medium" style="color: #0f1117; line-height: 1.5;">${item.originalQuery}</p>
+        <p class="text-xs" style="color: #9ca3af; line-height: 1.5;">${preview}</p>
+        <div class="flex gap-3 items-center" style="color: #d1d5db;">
+          <span class="text-xs">${formatDate(item.createdAt)}</span>
+          <span class="text-xs">${item.latencyMs} ms</span>
+          ${item.originalQuery !== item.sanitizedQuery ? '<span class="text-xs px-1.5 py-0.5 rounded" style="background: rgba(251,191,36,0.15); color: #92400e;">anonimizada</span>' : ""}
+        </div>
+      `;
+      card.addEventListener("click", () => openModal(item));
+      listEl.appendChild(card);
+    }
+
+    listEl.classList.remove("hidden");
+
+    // Pagination controls
+    if (page > 1 || hasMore) {
+      paginationEl.classList.remove("hidden");
+      pageInfo.textContent    = `Página ${currentPage}`;
+      (prevBtn as HTMLButtonElement).disabled = page <= 1;
+      (nextBtn as HTMLButtonElement).disabled = !hasMore;
+    }
+  }
+
+  prevBtn?.addEventListener("click", () => loadPage(currentPage - 1));
+  nextBtn?.addEventListener("click", () => loadPage(currentPage + 1));
+
+  loadPage(1);
+</script>
