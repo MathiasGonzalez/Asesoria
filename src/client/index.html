@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Asesoría DGI/BPS</title>
+  <script type="module" src="./app.ts"></script>
+</head>
+<body class="bg-slate-50 text-slate-800">
+  <main class="max-w-3xl mx-auto p-6 flex flex-col gap-6">
+    <div class="bg-white rounded-lg border border-slate-200 p-6 shadow-sm flex flex-col gap-4">
+      <h1 class="text-xl font-semibold">Asistente Regulatorio DGI/BPS</h1>
+      <p class="text-sm text-slate-600">Consulta normativa con anonimización automática y contexto verificable.</p>
+      <form id="search-form" class="flex gap-2">
+        <input type="text" id="query-input" placeholder="Ej: ¿Qué plazo tiene una auditoría fiscal de DGI?" class="flex-grow rounded-md border border-slate-300 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" required>
+        <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-md px-5 py-2 text-sm transition-colors">Consultar</button>
+      </form>
+    </div>
+
+    <div id="loading" class="hidden text-center py-8">
+      <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+      <p class="text-sm text-slate-500 mt-2">Analizando normativa y validando secreto tributario...</p>
+    </div>
+
+    <div id="results-card" class="hidden bg-white rounded-lg border border-slate-200 p-6 shadow-sm flex flex-col gap-4">
+      <div class="flex justify-between items-center border-b border-slate-100 pb-2">
+        <h2 class="font-semibold text-slate-800">Respuesta del Asistente</h2>
+        <span id="latency-tag" class="text-xs text-slate-400"></span>
+      </div>
+      <div id="sanitized-alert" class="text-xs bg-amber-50 text-amber-800 rounded p-3 border border-amber-200 hidden"></div>
+      <div id="answer-content" class="text-sm text-slate-700 leading-relaxed whitespace-pre-line"></div>
+    </div>
+  </main>
+</body>
+</html>
