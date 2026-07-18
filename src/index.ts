@@ -457,6 +457,251 @@ app.post("/api/ingest", requireAuth, requireAdmin, async (c) => {
 });
 
 // ---------------------------------------------------------------------------
+// Tax Analysis routes
+// ---------------------------------------------------------------------------
+
+const TAX_MONTH_NAMES = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
+const TAX_MAX_DOCS    = 10;
+const TAX_MAX_CHARS   = 8_000;
+
+// GET /api/tax/periods  – list authenticated user's tax periods
+app.get("/api/tax/periods", requireAuth, async (c) => {
+  const userId = c.get("userId");
+  const rows = await c.env.DB.prepare(`
+    SELECT p.id, p.month, p.year, p.label, p.status, p.created_at,
+           COUNT(d.id) AS doc_count
+    FROM tax_periods p
+    LEFT JOIN tax_documents d ON d.period_id = p.id
+    WHERE p.user_id = ?
+    GROUP BY p.id
+    ORDER BY p.year DESC, p.month DESC
+  `).bind(userId).all<{
+    id: string; month: number; year: number; label: string;
+    status: string; created_at: number; doc_count: number;
+  }>();
+  return c.json({ periods: rows.results });
+});
+
+// POST /api/tax/periods  – create a new tax period
+// Body: { month: number, year: number }
+app.post("/api/tax/periods", requireAuth, async (c) => {
+  const userId   = c.get("userId");
+  const tenantId = c.get("tenantId");
+  const body = await c.req.json<{ month?: number; year?: number }>();
+  const month = Number(body.month);
+  const year  = Number(body.year);
+
+  if (!month || !year || month < 1 || month > 12 || year < 2000 || year > 2100) {
+    return c.json({ error: "Mes (1-12) y año (>= 2000) son requeridos." }, 400);
+  }
+
+  const label = `${TAX_MONTH_NAMES[month - 1]} ${year}`;
+  const id    = crypto.randomUUID();
+
+  try {
+    await c.env.DB.prepare(
+      `INSERT INTO tax_periods (id, user_id, tenant_id, month, year, label) VALUES (?, ?, ?, ?, ?, ?)`
+    ).bind(id, userId, tenantId, month, year, label).run();
+  } catch {
+    return c.json({ error: `Ya existe un período para ${label}.` }, 409);
+  }
+
+  return c.json({ ok: true, period: { id, month, year, label, status: "draft", doc_count: 0 } }, 201);
+});
+
+// DELETE /api/tax/periods/:id
+app.delete("/api/tax/periods/:id", requireAuth, async (c) => {
+  const userId = c.get("userId");
+  const id     = c.req.param("id");
+
+  const exists = await c.env.DB.prepare(
+    "SELECT id FROM tax_periods WHERE id = ? AND user_id = ?"
+  ).bind(id, userId).first<{ id: string }>();
+  if (!exists) return c.json({ error: "Período no encontrado." }, 404);
+
+  await c.env.DB.prepare("DELETE FROM tax_periods WHERE id = ?").bind(id).run();
+  return c.json({ ok: true });
+});
+
+// GET /api/tax/periods/:id/documents
+app.get("/api/tax/periods/:id/documents", requireAuth, async (c) => {
+  const userId   = c.get("userId");
+  const periodId = c.req.param("id");
+
+  const period = await c.env.DB.prepare(
+    "SELECT id, label, status FROM tax_periods WHERE id = ? AND user_id = ?"
+  ).bind(periodId, userId).first<{ id: string; label: string; status: string }>();
+  if (!period) return c.json({ error: "Período no encontrado." }, 404);
+
+  const rows = await c.env.DB.prepare(
+    `SELECT id, filename, doc_type, created_at, LENGTH(content) AS content_length
+     FROM tax_documents WHERE period_id = ? ORDER BY created_at ASC`
+  ).bind(periodId).all<{
+    id: string; filename: string; doc_type: string | null;
+    created_at: number; content_length: number;
+  }>();
+
+  return c.json({ period, documents: rows.results });
+});
+
+// POST /api/tax/periods/:id/documents
+// Body: { filename: string, content: string, doc_type?: string }
+app.post("/api/tax/periods/:id/documents", requireAuth, async (c) => {
+  const userId   = c.get("userId");
+  const periodId = c.req.param("id");
+
+  const period = await c.env.DB.prepare(
+    "SELECT id FROM tax_periods WHERE id = ? AND user_id = ?"
+  ).bind(periodId, userId).first<{ id: string }>();
+  if (!period) return c.json({ error: "Período no encontrado." }, 404);
+
+  const count = await c.env.DB.prepare(
+    "SELECT COUNT(*) AS n FROM tax_documents WHERE period_id = ?"
+  ).bind(periodId).first<{ n: number }>();
+  if ((count?.n ?? 0) >= TAX_MAX_DOCS) {
+    return c.json({ error: `Límite de ${TAX_MAX_DOCS} documentos por período alcanzado.` }, 422);
+  }
+
+  const body = await c.req.json<{ filename?: string; content?: string; doc_type?: string }>();
+  const { filename, content, doc_type } = body;
+
+  if (!filename?.trim() || !content?.trim()) {
+    return c.json({ error: "filename y content son requeridos." }, 400);
+  }
+  if (content.length > TAX_MAX_CHARS) {
+    return c.json(
+      { error: `El documento excede el límite de ${TAX_MAX_CHARS.toLocaleString("es-UY")} caracteres. Dividilo en partes más pequeñas.` },
+      413
+    );
+  }
+
+  const docId = crypto.randomUUID();
+  await c.env.DB.prepare(
+    `INSERT INTO tax_documents (id, period_id, user_id, filename, content, doc_type) VALUES (?, ?, ?, ?, ?, ?)`
+  ).bind(docId, periodId, userId, filename.trim(), content.trim(), doc_type?.trim() || null).run();
+
+  return c.json({
+    ok: true,
+    document: { id: docId, filename: filename.trim(), doc_type: doc_type?.trim() || null, content_length: content.length },
+  }, 201);
+});
+
+// DELETE /api/tax/periods/:id/documents/:docId
+app.delete("/api/tax/periods/:id/documents/:docId", requireAuth, async (c) => {
+  const userId   = c.get("userId");
+  const periodId = c.req.param("id");
+  const docId    = c.req.param("docId");
+
+  const period = await c.env.DB.prepare(
+    "SELECT id FROM tax_periods WHERE id = ? AND user_id = ?"
+  ).bind(periodId, userId).first<{ id: string }>();
+  if (!period) return c.json({ error: "Período no encontrado." }, 404);
+
+  await c.env.DB.prepare(
+    "DELETE FROM tax_documents WHERE id = ? AND period_id = ?"
+  ).bind(docId, periodId).run();
+
+  return c.json({ ok: true });
+});
+
+// POST /api/tax/periods/:id/consolidate  – run AI tax consolidation
+app.post("/api/tax/periods/:id/consolidate", requireAuth, async (c) => {
+  const userId   = c.get("userId");
+  const tenantId = c.get("tenantId");
+  const periodId = c.req.param("id");
+
+  const period = await c.env.DB.prepare(
+    "SELECT id, label FROM tax_periods WHERE id = ? AND user_id = ?"
+  ).bind(periodId, userId).first<{ id: string; label: string }>();
+  if (!period) return c.json({ error: "Período no encontrado." }, 404);
+
+  const ffService = new FeatureFlagsService(c.env);
+  const flags     = await ffService.getFlags(tenantId);
+  if (!flags["ai_search_enabled"]) {
+    return c.json({ error: "El análisis con IA está temporalmente deshabilitado." }, 503);
+  }
+
+  const docs = await c.env.DB.prepare(
+    `SELECT filename, content, doc_type FROM tax_documents WHERE period_id = ? ORDER BY created_at ASC`
+  ).bind(periodId).all<{ filename: string; content: string; doc_type: string | null }>();
+
+  if (docs.results.length === 0) {
+    return c.json({ error: "No hay documentos en este período. Subí al menos uno antes de consolidar." }, 422);
+  }
+
+  const docsContext = docs.results
+    .map((d, i) => `--- Documento ${i + 1}: ${d.filename}${d.doc_type ? ` (${d.doc_type})` : ""} ---\n${d.content}`)
+    .join("\n\n");
+
+  const prompt = `Sos un contador público experto en impuestos de Uruguay (DGI y BPS). Analizá los siguientes documentos del período ${period.label} y producí un resumen consolidado de la situación impositiva.
+
+Para cada impuesto identificado (IVA, IRAE, IRPF, IRNR, Impuesto al Patrimonio, BPS Patronal, BPS Personal/FONASA u otros relevantes), indicá:
+- tipo: nombre exacto del impuesto
+- base_imponible: monto base imponible (número en pesos uruguayos, o null si no determinable)
+- tasa: tasa porcentual aplicable (número, o null)
+- monto_estimado: monto estimado a pagar o retener (número en pesos, o null)
+- vencimiento: fecha de vencimiento sugerida como texto (ej: "20/03/2025"), o null
+- estado: uno de "a_pagar", "retencion", "a_cobrar", "informativo"
+- notas: observaciones importantes (puede ser null)
+
+Respondé ÚNICAMENTE con un objeto JSON válido con esta estructura exacta (sin markdown, sin texto extra):
+{
+  "periodo": "${period.label}",
+  "resumen": "descripción breve de la situación impositiva global",
+  "impuestos": [ { "tipo": "...", "base_imponible": ..., "tasa": ..., "monto_estimado": ..., "vencimiento": "...", "estado": "...", "notas": "..." } ],
+  "alertas": ["lista de alertas o advertencias relevantes"],
+  "total_a_pagar": monto_total_numero_o_null
+}
+
+Si no podés determinar un valor con certeza, usá null. Basate SOLO en los documentos provistos.
+
+${docsContext}`;
+
+  const aiResponse = (await c.env.AI.run("@cf/qwen/qwq-32b", {
+    messages: [
+      {
+        role: "system",
+        content: "Sos un asistente contable especializado en impuestos uruguayos. Respondé SOLO con JSON válido sin ningún texto adicional ni bloques de código markdown.",
+      },
+      { role: "user", content: prompt },
+    ],
+  })) as { response?: string };
+
+  const rawResponse = aiResponse.response ?? "";
+
+  const consolidationId = crypto.randomUUID();
+  await c.env.DB.prepare("DELETE FROM tax_consolidations WHERE period_id = ?").bind(periodId).run();
+  await c.env.DB.prepare(
+    `INSERT INTO tax_consolidations (id, period_id, raw_response) VALUES (?, ?, ?)`
+  ).bind(consolidationId, periodId, rawResponse).run();
+
+  await c.env.DB.prepare("UPDATE tax_periods SET status = 'analyzed' WHERE id = ?").bind(periodId).run();
+
+  return c.json({ ok: true, response: rawResponse });
+});
+
+// GET /api/tax/periods/:id/consolidation  – fetch existing consolidation result
+app.get("/api/tax/periods/:id/consolidation", requireAuth, async (c) => {
+  const userId   = c.get("userId");
+  const periodId = c.req.param("id");
+
+  const period = await c.env.DB.prepare(
+    "SELECT id, label, status FROM tax_periods WHERE id = ? AND user_id = ?"
+  ).bind(periodId, userId).first<{ id: string; label: string; status: string }>();
+  if (!period) return c.json({ error: "Período no encontrado." }, 404);
+
+  if (period.status !== "analyzed") return c.json({ analyzed: false });
+
+  const result = await c.env.DB.prepare(
+    "SELECT raw_response, created_at FROM tax_consolidations WHERE period_id = ?"
+  ).bind(periodId).first<{ raw_response: string; created_at: number }>();
+
+  if (!result) return c.json({ analyzed: false });
+
+  return c.json({ analyzed: true, raw_response: result.raw_response, created_at: result.created_at });
+});
+
+// ---------------------------------------------------------------------------
 // Serve static frontend assets
 // ---------------------------------------------------------------------------
 

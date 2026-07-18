@@ -1,0 +1,842 @@
+---
+import AppLayout from "../../../layouts/AppLayout.astro";
+---
+
+<AppLayout title="Período Impositivo">
+  <!-- Breadcrumb -->
+  <nav class="flex items-center gap-2 text-xs" style="color: #9ca3af;">
+    <a href="/app" class="transition-colors hover:text-indigo-600">Inicio</a>
+    <span>/</span>
+    <a href="/app/impuestos" class="transition-colors hover:text-indigo-600">Análisis Impositivo</a>
+    <span>/</span>
+    <span id="breadcrumb-label" style="color: #374151;">Cargando…</span>
+  </nav>
+
+  <!-- Period header -->
+  <div class="flex items-center justify-between gap-4 flex-wrap">
+    <div class="flex flex-col gap-1">
+      <div class="flex items-center gap-3">
+        <h1 id="period-title" class="text-2xl font-bold tracking-tight" style="color: #0f1117;">—</h1>
+        <span id="period-badge" class="hidden text-xs font-medium px-2.5 py-1 rounded-full"></span>
+      </div>
+      <p id="period-subtitle" class="text-sm" style="color: #6b7280;"></p>
+    </div>
+    <!-- Consolidate button -->
+    <button id="btn-consolidate"
+      class="hidden flex items-center gap-2 text-sm font-medium rounded-xl px-4 py-2.5 transition-all"
+      style="background: #059669; color: white; box-shadow: 0 2px 8px rgba(5,150,105,0.25);"
+      onmouseover="this.style.background='#047857'; this.style.transform='translateY(-1px)';"
+      onmouseout="this.style.background='#059669'; this.style.transform='';">
+      <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" />
+      </svg>
+      <span id="btn-consolidate-text">Analizar con IA</span>
+    </button>
+  </div>
+
+  <!-- Global alert -->
+  <div id="alert" class="hidden text-sm rounded-xl px-4 py-3"></div>
+
+  <!-- Tabs -->
+  <div class="flex gap-1 p-1 rounded-xl" style="background: rgba(0,0,0,0.04);">
+    <button id="tab-docs" data-tab="docs"
+      class="tab-btn flex-1 text-sm font-medium py-2 rounded-lg transition-all"
+      style="background: white; color: #0f1117; box-shadow: 0 1px 4px rgba(0,0,0,0.08);">
+      Documentos
+    </button>
+    <button id="tab-analysis" data-tab="analysis"
+      class="tab-btn flex-1 text-sm font-medium py-2 rounded-lg transition-all"
+      style="color: #6b7280;">
+      Análisis
+    </button>
+  </div>
+
+  <!-- ── Tab: Documents ──────────────────────────────────────────────── -->
+  <div id="pane-docs" class="flex flex-col gap-5">
+    <!-- Upload card -->
+    <div class="rounded-2xl p-6 flex flex-col gap-4" style="background: white; border: 1px solid rgba(0,0,0,0.07); box-shadow: 0 1px 6px rgba(0,0,0,0.04);">
+      <h2 class="text-sm font-semibold" style="color: #0f1117;">Subir documento</h2>
+
+      <div id="upload-alert" class="hidden text-xs rounded-lg px-3 py-2"></div>
+
+      <form id="upload-form" class="flex flex-col gap-4">
+        <!-- File drop zone -->
+        <div id="drop-zone"
+          class="relative flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed py-8 px-4 transition-all cursor-pointer"
+          style="border-color: rgba(79,70,229,0.3); background: rgba(79,70,229,0.02);"
+          onmouseover="this.style.borderColor='rgba(79,70,229,0.6)'; this.style.background='rgba(79,70,229,0.04)';"
+          onmouseout="this.style.borderColor='rgba(79,70,229,0.3)'; this.style.background='rgba(79,70,229,0.02)';">
+          <svg class="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="color: #6366f1;">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m6.75 12-3-3m0 0-3 3m3-3v6m-1.5-15H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
+          </svg>
+          <span class="text-sm font-medium" style="color: #374151;">Arrastrá un archivo o hacé clic para seleccionar</span>
+          <span class="text-xs" style="color: #9ca3af;">Archivos de texto, CSV, TXT — máximo 8.000 caracteres</span>
+          <input id="file-input" type="file" accept=".txt,.csv,.text,.md,.json" class="absolute inset-0 opacity-0 cursor-pointer" />
+        </div>
+
+        <!-- Selected file info -->
+        <div id="file-info" class="hidden items-center gap-3 rounded-xl px-4 py-3"
+          style="background: rgba(79,70,229,0.06); border: 1px solid rgba(79,70,229,0.15);">
+          <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="color: #4f46e5;">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
+          </svg>
+          <span id="file-name" class="text-xs font-medium flex-1 truncate" style="color: #374151;"></span>
+          <button type="button" id="file-clear" class="text-xs transition-colors" style="color: #9ca3af;"
+            onmouseover="this.style.color='#ef4444'" onmouseout="this.style.color='#9ca3af'">
+            Quitar
+          </button>
+        </div>
+
+        <!-- Or paste text manually -->
+        <details class="group">
+          <summary class="text-xs font-medium cursor-pointer select-none" style="color: #6b7280;">
+            ▸ O pegá el texto manualmente
+          </summary>
+          <div class="mt-3 flex flex-col gap-2">
+            <label for="manual-name" class="text-xs font-medium" style="color: #374151;">Nombre del documento</label>
+            <input id="manual-name" type="text" placeholder="Ej: resumen_ventas_enero.txt"
+              class="rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              style="color: #0f1117;" />
+            <label for="manual-content" class="text-xs font-medium mt-1" style="color: #374151;">Contenido</label>
+            <textarea id="manual-content" rows="5" placeholder="Pegá el contenido del documento aquí…"
+              class="rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-y"
+              style="color: #0f1117;"></textarea>
+          </div>
+        </details>
+
+        <!-- Doc type -->
+        <div class="flex flex-col gap-1.5">
+          <label for="doc-type" class="text-xs font-medium" style="color: #374151;">Tipo de documento</label>
+          <select id="doc-type"
+            class="rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+            style="color: #0f1117;">
+            <option value="">— Sin especificar —</option>
+            <option value="factura_venta">Facturas de venta</option>
+            <option value="factura_compra">Facturas de compra</option>
+            <option value="planilla_sueldos">Planilla de sueldos</option>
+            <option value="resumen_bancario">Resumen bancario</option>
+            <option value="declaracion_dgi">Declaración DGI</option>
+            <option value="boleta_bps">Boleta BPS</option>
+            <option value="libro_iva">Libro de IVA</option>
+            <option value="estado_resultado">Estado de resultado</option>
+            <option value="otro">Otro</option>
+          </select>
+        </div>
+
+        <button type="submit" id="upload-btn"
+          class="self-start text-sm font-medium rounded-xl px-5 py-2.5 transition-all"
+          style="background: #4f46e5; color: white; box-shadow: 0 2px 8px rgba(79,70,229,0.2);"
+          onmouseover="this.style.background='#4338ca'" onmouseout="this.style.background='#4f46e5'">
+          Subir documento
+        </button>
+      </form>
+    </div>
+
+    <!-- Documents list -->
+    <div class="flex flex-col gap-2">
+      <div class="flex items-center justify-between">
+        <h2 class="text-sm font-semibold" style="color: #0f1117;">Documentos del período</h2>
+        <span id="doc-count" class="text-xs" style="color: #9ca3af;"></span>
+      </div>
+
+      <div id="docs-loading" class="flex flex-col gap-2">
+        {Array.from({ length: 2 }).map(() => (
+          <div class="rounded-xl p-4 animate-pulse" style="background: white; border: 1px solid rgba(0,0,0,0.07);">
+            <div class="h-4 rounded w-1/2" style="background: #f3f4f6;"></div>
+          </div>
+        ))}
+      </div>
+
+      <div id="docs-empty" class="hidden rounded-xl px-5 py-8 text-center" style="background: white; border: 1px solid rgba(0,0,0,0.07);">
+        <p class="text-sm" style="color: #9ca3af;">Todavía no hay documentos. Subí el primero arriba.</p>
+      </div>
+
+      <div id="docs-list" class="hidden flex flex-col gap-2"></div>
+    </div>
+
+    <!-- Analyze CTA -->
+    <div id="analyze-cta" class="hidden rounded-2xl p-5 flex items-center justify-between gap-4 flex-wrap"
+      style="background: rgba(5,150,105,0.05); border: 1px solid rgba(5,150,105,0.2);">
+      <div class="flex flex-col gap-1">
+        <p class="text-sm font-medium" style="color: #065f46;">¿Listo para analizar?</p>
+        <p class="text-xs" style="color: #047857;">El asistente revisará todos los documentos y generará el consolidado impositivo.</p>
+      </div>
+      <button id="btn-consolidate-docs"
+        class="text-sm font-medium rounded-xl px-4 py-2.5 transition-all whitespace-nowrap"
+        style="background: #059669; color: white; box-shadow: 0 2px 8px rgba(5,150,105,0.25);"
+        onmouseover="this.style.background='#047857'" onmouseout="this.style.background='#059669'">
+        Analizar con IA
+      </button>
+    </div>
+  </div>
+
+  <!-- ── Tab: Analysis ───────────────────────────────────────────────── -->
+  <div id="pane-analysis" class="hidden flex flex-col gap-5">
+    <!-- Not analyzed yet -->
+    <div id="analysis-empty" class="rounded-2xl p-10 flex flex-col items-center gap-4 text-center"
+      style="background: white; border: 1px solid rgba(0,0,0,0.07);">
+      <div class="w-14 h-14 rounded-2xl flex items-center justify-center" style="background: rgba(5,150,105,0.08);">
+        <svg class="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="color: #059669;">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" />
+        </svg>
+      </div>
+      <p class="text-base font-semibold" style="color: #0f1117;">Sin análisis aún</p>
+      <p class="text-sm max-w-sm" style="color: #6b7280;">Subí documentos en la pestaña "Documentos" y luego ejecutá el análisis para obtener el consolidado impositivo.</p>
+      <button id="analysis-empty-btn"
+        class="text-sm font-medium rounded-xl px-4 py-2.5 transition-all"
+        style="background: #059669; color: white;"
+        onmouseover="this.style.background='#047857'" onmouseout="this.style.background='#059669'">
+        Ir a Documentos
+      </button>
+    </div>
+
+    <!-- Analysis loading -->
+    <div id="analysis-loading" class="hidden flex flex-col gap-4">
+      <div class="rounded-2xl p-6 animate-pulse flex flex-col gap-3" style="background: white; border: 1px solid rgba(0,0,0,0.07);">
+        <div class="h-4 rounded w-1/3" style="background: #f3f4f6;"></div>
+        <div class="h-3 rounded w-full" style="background: #f3f4f6;"></div>
+        <div class="h-3 rounded w-4/5" style="background: #f3f4f6;"></div>
+      </div>
+    </div>
+
+    <!-- Analysis results -->
+    <div id="analysis-results" class="hidden flex flex-col gap-5">
+      <!-- Summary card -->
+      <div class="rounded-2xl p-5 flex flex-col gap-3" style="background: white; border: 1px solid rgba(0,0,0,0.07); box-shadow: 0 1px 6px rgba(0,0,0,0.04);">
+        <div class="flex items-center gap-2">
+          <div class="w-2 h-2 rounded-full" style="background: #059669;"></div>
+          <h2 class="text-sm font-semibold" style="color: #0f1117;">Resumen del período</h2>
+        </div>
+        <p id="analysis-summary" class="text-sm leading-relaxed" style="color: #374151;"></p>
+        <div class="flex items-center gap-4 pt-1 flex-wrap">
+          <div id="total-badge" class="hidden flex items-center gap-2 rounded-xl px-4 py-2"
+            style="background: rgba(5,150,105,0.07); border: 1px solid rgba(5,150,105,0.2);">
+            <span class="text-xs" style="color: #047857;">Total estimado a pagar</span>
+            <span id="total-amount" class="text-sm font-bold" style="color: #065f46;"></span>
+          </div>
+          <p id="analysis-date" class="text-xs" style="color: #9ca3af;"></p>
+        </div>
+      </div>
+
+      <!-- Alerts -->
+      <div id="alerts-container" class="hidden flex flex-col gap-2"></div>
+
+      <!-- Tax table -->
+      <div class="rounded-2xl overflow-hidden" style="background: white; border: 1px solid rgba(0,0,0,0.07); box-shadow: 0 1px 6px rgba(0,0,0,0.04);">
+        <div class="px-5 py-4" style="border-bottom: 1px solid rgba(0,0,0,0.06);">
+          <h2 class="text-sm font-semibold" style="color: #0f1117;">Consolidado por impuesto</h2>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead>
+              <tr style="background: rgba(0,0,0,0.02); border-bottom: 1px solid rgba(0,0,0,0.06);">
+                <th class="text-left px-5 py-3 text-xs font-semibold" style="color: #6b7280;">Impuesto</th>
+                <th class="text-right px-4 py-3 text-xs font-semibold" style="color: #6b7280;">Base Imponible</th>
+                <th class="text-right px-4 py-3 text-xs font-semibold" style="color: #6b7280;">Tasa</th>
+                <th class="text-right px-4 py-3 text-xs font-semibold" style="color: #6b7280;">Monto Est.</th>
+                <th class="text-left px-4 py-3 text-xs font-semibold" style="color: #6b7280;">Vencimiento</th>
+                <th class="text-left px-4 py-3 text-xs font-semibold" style="color: #6b7280;">Estado</th>
+              </tr>
+            </thead>
+            <tbody id="tax-table-body"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Raw response (collapsible) -->
+      <details class="rounded-xl overflow-hidden" style="border: 1px solid rgba(0,0,0,0.07);">
+        <summary class="px-5 py-3 text-xs font-medium cursor-pointer select-none"
+          style="background: rgba(0,0,0,0.02); color: #6b7280;">
+          Respuesta completa del modelo
+        </summary>
+        <pre id="raw-response" class="text-xs p-5 overflow-x-auto whitespace-pre-wrap leading-relaxed"
+          style="color: #374151; background: white; max-height: 320px; overflow-y: auto;"></pre>
+      </details>
+
+      <!-- Re-analyze button -->
+      <div class="flex justify-end">
+        <button id="btn-reanalyze"
+          class="text-xs font-medium rounded-lg px-4 py-2 transition-colors"
+          style="border: 1px solid rgba(0,0,0,0.1); color: #6b7280;"
+          onmouseover="this.style.background='rgba(0,0,0,0.04)'" onmouseout="this.style.background='transparent'">
+          Volver a analizar
+        </button>
+      </div>
+    </div>
+  </div>
+</AppLayout>
+
+<script>
+  // ── Types ──────────────────────────────────────────────────────────────────
+  interface TaxDoc {
+    id: string;
+    filename: string;
+    doc_type: string | null;
+    created_at: number;
+    content_length: number;
+  }
+  interface TaxItem {
+    tipo: string;
+    base_imponible: number | null;
+    tasa: number | null;
+    monto_estimado: number | null;
+    vencimiento: string | null;
+    estado: string | null;
+    notas: string | null;
+  }
+  interface ConsolidationData {
+    periodo?: string;
+    resumen?: string;
+    impuestos?: TaxItem[];
+    alertas?: string[];
+    total_a_pagar?: number | null;
+  }
+
+  // ── Elements ───────────────────────────────────────────────────────────────
+  const alertEl       = document.getElementById("alert")            as HTMLDivElement;
+  const periodTitle   = document.getElementById("period-title")     as HTMLHeadingElement;
+  const periodBadge   = document.getElementById("period-badge")     as HTMLSpanElement;
+  const periodSubtitle = document.getElementById("period-subtitle") as HTMLParagraphElement;
+  const breadLabel    = document.getElementById("breadcrumb-label") as HTMLSpanElement;
+
+  const btnConsolidate     = document.getElementById("btn-consolidate")      as HTMLButtonElement;
+  const btnConsolidateText = document.getElementById("btn-consolidate-text") as HTMLSpanElement;
+  const btnConsolidateDocs = document.getElementById("btn-consolidate-docs") as HTMLButtonElement;
+  const btnReanalyze       = document.getElementById("btn-reanalyze")        as HTMLButtonElement;
+
+  // Tabs
+  const tabDocs     = document.getElementById("tab-docs")     as HTMLButtonElement;
+  const tabAnalysis = document.getElementById("tab-analysis") as HTMLButtonElement;
+  const paneDocs    = document.getElementById("pane-docs")    as HTMLDivElement;
+  const paneAnalysis = document.getElementById("pane-analysis") as HTMLDivElement;
+
+  // Docs pane
+  const uploadForm  = document.getElementById("upload-form")  as HTMLFormElement;
+  const uploadAlert = document.getElementById("upload-alert") as HTMLDivElement;
+  const uploadBtn   = document.getElementById("upload-btn")   as HTMLButtonElement;
+  const fileInput   = document.getElementById("file-input")   as HTMLInputElement;
+  const dropZone    = document.getElementById("drop-zone")    as HTMLDivElement;
+  const fileInfo    = document.getElementById("file-info")    as HTMLDivElement;
+  const fileNameEl  = document.getElementById("file-name")    as HTMLSpanElement;
+  const fileClear   = document.getElementById("file-clear")   as HTMLButtonElement;
+  const manualName  = document.getElementById("manual-name")  as HTMLInputElement;
+  const manualContent = document.getElementById("manual-content") as HTMLTextAreaElement;
+  const docTypeSelect = document.getElementById("doc-type")   as HTMLSelectElement;
+  const docsLoading = document.getElementById("docs-loading") as HTMLDivElement;
+  const docsEmpty   = document.getElementById("docs-empty")   as HTMLDivElement;
+  const docsList    = document.getElementById("docs-list")    as HTMLDivElement;
+  const docCount    = document.getElementById("doc-count")    as HTMLSpanElement;
+  const analyzeCta  = document.getElementById("analyze-cta")  as HTMLDivElement;
+
+  // Analysis pane
+  const analysisEmpty    = document.getElementById("analysis-empty")    as HTMLDivElement;
+  const analysisLoading  = document.getElementById("analysis-loading")  as HTMLDivElement;
+  const analysisResults  = document.getElementById("analysis-results")  as HTMLDivElement;
+  const analysisSummary  = document.getElementById("analysis-summary")  as HTMLParagraphElement;
+  const totalBadge       = document.getElementById("total-badge")       as HTMLDivElement;
+  const totalAmount      = document.getElementById("total-amount")      as HTMLSpanElement;
+  const analysisDate     = document.getElementById("analysis-date")     as HTMLParagraphElement;
+  const alertsContainer  = document.getElementById("alerts-container")  as HTMLDivElement;
+  const taxTableBody     = document.getElementById("tax-table-body")    as HTMLTableSectionElement;
+  const rawResponseEl    = document.getElementById("raw-response")      as HTMLPreElement;
+  const analysisEmptyBtn = document.getElementById("analysis-empty-btn") as HTMLButtonElement;
+
+  // ── State ─────────────────────────────────────────────────────────────────
+  let periodId  = "";
+  let periodLabel = "";
+  let currentDocs: TaxDoc[] = [];
+  let currentTab: "docs" | "analysis" = "docs";
+  let isAnalyzed = false;
+  let selectedFile: File | null = null;
+
+  // ── Helpers ────────────────────────────────────────────────────────────────
+  const session = () => localStorage.getItem("adviser_session") ?? "";
+  const authHdr = (): HeadersInit => ({ Authorization: "Bearer " + session() });
+  const jsonHdr = (): HeadersInit => ({ Authorization: "Bearer " + session(), "Content-Type": "application/json" });
+
+  function handleUnauth(status: number) {
+    if (status === 401) {
+      localStorage.removeItem("adviser_session");
+      window.location.replace("/login?login=expired");
+      return true;
+    }
+    return false;
+  }
+
+  function showAlert(msg: string, type: "error" | "success" | "warn" = "error") {
+    alertEl.textContent = msg;
+    alertEl.classList.remove("hidden", "bg-red-50", "text-red-800", "border-red-200");
+    if (type === "error") {
+      alertEl.style.cssText = "background: rgba(239,68,68,0.07); border: 1px solid rgba(239,68,68,0.25); color: #b91c1c;";
+    } else if (type === "success") {
+      alertEl.style.cssText = "background: rgba(5,150,105,0.07); border: 1px solid rgba(5,150,105,0.25); color: #065f46;";
+    } else {
+      alertEl.style.cssText = "background: rgba(251,191,36,0.1); border: 1px solid rgba(251,191,36,0.3); color: #92400e;";
+    }
+    alertEl.classList.remove("hidden");
+    setTimeout(() => alertEl.classList.add("hidden"), 7000);
+  }
+
+  function showUploadAlert(msg: string, type: "error" | "success" = "error") {
+    uploadAlert.textContent = msg;
+    if (type === "error") {
+      uploadAlert.style.cssText = "background: rgba(239,68,68,0.07); border: 1px solid rgba(239,68,68,0.25); color: #b91c1c;";
+    } else {
+      uploadAlert.style.cssText = "background: rgba(5,150,105,0.07); border: 1px solid rgba(5,150,105,0.25); color: #065f46;";
+    }
+    uploadAlert.classList.remove("hidden");
+    setTimeout(() => uploadAlert.classList.add("hidden"), 5000);
+  }
+
+  function formatMoney(n: number | null | undefined): string {
+    if (n == null) return "—";
+    return new Intl.NumberFormat("es-UY", { style: "currency", currency: "UYU", maximumFractionDigits: 0 }).format(n);
+  }
+
+  function formatDate(ts: number): string {
+    return new Date(ts * 1000).toLocaleDateString("es-UY", { day: "2-digit", month: "short", year: "numeric" });
+  }
+
+  function formatChars(n: number): string {
+    return n >= 1000 ? `${(n / 1000).toFixed(1)}k chars` : `${n} chars`;
+  }
+
+  const DOC_TYPE_LABELS: Record<string, string> = {
+    factura_venta:    "Facturas de venta",
+    factura_compra:   "Facturas de compra",
+    planilla_sueldos: "Planilla de sueldos",
+    resumen_bancario: "Resumen bancario",
+    declaracion_dgi:  "Declaración DGI",
+    boleta_bps:       "Boleta BPS",
+    libro_iva:        "Libro de IVA",
+    estado_resultado: "Estado de resultado",
+    otro:             "Otro",
+  };
+
+  const STATUS_STYLE: Record<string, string> = {
+    a_pagar:    "background: rgba(239,68,68,0.1); color: #b91c1c;",
+    retencion:  "background: rgba(79,70,229,0.1); color: #3730a3;",
+    a_cobrar:   "background: rgba(5,150,105,0.1); color: #065f46;",
+    informativo: "background: rgba(0,0,0,0.06); color: #374151;",
+  };
+  const STATUS_LABEL_MAP: Record<string, string> = {
+    a_pagar:    "A pagar",
+    retencion:  "Retención",
+    a_cobrar:   "A cobrar",
+    informativo: "Informativo",
+  };
+
+  // ── Tab switching ──────────────────────────────────────────────────────────
+  function switchTab(tab: "docs" | "analysis") {
+    currentTab = tab;
+    const active   = "background: white; color: #0f1117; box-shadow: 0 1px 4px rgba(0,0,0,0.08);";
+    const inactive = "color: #6b7280;";
+
+    if (tab === "docs") {
+      tabDocs.style.cssText = active;
+      tabAnalysis.style.cssText = inactive;
+      paneDocs.classList.remove("hidden");
+      paneAnalysis.classList.add("hidden");
+    } else {
+      tabAnalysis.style.cssText = active;
+      tabDocs.style.cssText = inactive;
+      paneAnalysis.classList.remove("hidden");
+      paneDocs.classList.add("hidden");
+      if (!isAnalyzed) {
+        analysisEmpty.classList.remove("hidden");
+        analysisLoading.classList.add("hidden");
+        analysisResults.classList.add("hidden");
+      }
+    }
+  }
+
+  tabDocs?.addEventListener("click",     () => switchTab("docs"));
+  tabAnalysis?.addEventListener("click", () => switchTab("analysis"));
+  analysisEmptyBtn?.addEventListener("click", () => switchTab("docs"));
+
+  // ── File input ─────────────────────────────────────────────────────────────
+  function handleFileSelected(file: File | null) {
+    if (!file) { clearFile(); return; }
+    selectedFile = file;
+    fileNameEl.textContent = `${file.name} — ${formatChars(file.size)}`;
+    fileInfo.classList.remove("hidden");
+    fileInfo.classList.add("flex");
+  }
+
+  function clearFile() {
+    selectedFile = null;
+    fileInput.value = "";
+    fileInfo.classList.add("hidden");
+    fileInfo.classList.remove("flex");
+    fileNameEl.textContent = "";
+  }
+
+  fileInput?.addEventListener("change", () => handleFileSelected(fileInput.files?.[0] ?? null));
+  fileClear?.addEventListener("click",  clearFile);
+
+  // Drag-and-drop
+  dropZone?.addEventListener("dragover", (e) => {
+    e.preventDefault();
+    dropZone.style.borderColor = "rgba(79,70,229,0.8)";
+    dropZone.style.background  = "rgba(79,70,229,0.06)";
+  });
+  dropZone?.addEventListener("dragleave", () => {
+    dropZone.style.borderColor = "rgba(79,70,229,0.3)";
+    dropZone.style.background  = "rgba(79,70,229,0.02)";
+  });
+  dropZone?.addEventListener("drop", (e) => {
+    e.preventDefault();
+    dropZone.style.borderColor = "rgba(79,70,229,0.3)";
+    dropZone.style.background  = "rgba(79,70,229,0.02)";
+    handleFileSelected(e.dataTransfer?.files?.[0] ?? null);
+  });
+
+  // ── Upload form ────────────────────────────────────────────────────────────
+  uploadForm?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    uploadAlert.classList.add("hidden");
+
+    let filename = "";
+    let content  = "";
+
+    if (selectedFile) {
+      filename = selectedFile.name;
+      try {
+        content = await selectedFile.text();
+      } catch {
+        showUploadAlert("No se pudo leer el archivo. Usá la opción de texto manual.");
+        return;
+      }
+    } else {
+      filename = manualName.value.trim();
+      content  = manualContent.value.trim();
+      if (!filename) { showUploadAlert("Ingresá un nombre de documento."); return; }
+      if (!content)  { showUploadAlert("Ingresá contenido del documento."); return; }
+    }
+
+    if (!content) { showUploadAlert("El archivo está vacío."); return; }
+
+    uploadBtn.disabled = true;
+    uploadBtn.textContent = "Subiendo…";
+
+    const body = JSON.stringify({
+      filename,
+      content,
+      doc_type: docTypeSelect.value || undefined,
+    });
+
+    const res = await fetch(`/api/tax/periods/${encodeURIComponent(periodId)}/documents`, {
+      method: "POST", headers: jsonHdr(), body,
+    });
+
+    if (handleUnauth(res.status)) return;
+
+    const data = await res.json() as { ok?: boolean; document?: TaxDoc; error?: string };
+
+    if (res.ok && data.document) {
+      showUploadAlert("Documento subido correctamente.", "success");
+      clearFile();
+      manualName.value = "";
+      manualContent.value = "";
+      docTypeSelect.value = "";
+      appendDoc(data.document);
+      updateDocCount(currentDocs.length);
+    } else {
+      showUploadAlert(data.error ?? "Error al subir el documento.");
+    }
+
+    uploadBtn.disabled = false;
+    uploadBtn.textContent = "Subir documento";
+  });
+
+  // ── Documents list ─────────────────────────────────────────────────────────
+  function appendDoc(doc: TaxDoc) {
+    currentDocs.push(doc);
+    docsEmpty.classList.add("hidden");
+    docsList.classList.remove("hidden");
+    docsList.appendChild(buildDocRow(doc));
+    updateDocCount(currentDocs.length);
+  }
+
+  function updateDocCount(n: number) {
+    docCount.textContent = `${n} / 10`;
+    if (n > 0) {
+      analyzeCta.classList.remove("hidden");
+      btnConsolidate.classList.remove("hidden");
+    } else {
+      analyzeCta.classList.add("hidden");
+    }
+  }
+
+  function buildDocRow(doc: TaxDoc): HTMLElement {
+    const row = document.createElement("div");
+    row.id = `doc-row-${doc.id}`;
+    row.className = "rounded-xl px-4 py-3 flex items-center gap-3";
+    row.style.cssText = "background: white; border: 1px solid rgba(0,0,0,0.07);";
+
+    const typeLabel = doc.doc_type ? (DOC_TYPE_LABELS[doc.doc_type] ?? doc.doc_type) : null;
+
+    row.innerHTML = `
+      <div class="w-8 h-8 rounded-lg flex-shrink-0 flex items-center justify-center" style="background: rgba(79,70,229,0.08);">
+        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="color: #6366f1;">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
+        </svg>
+      </div>
+      <div class="flex-1 min-w-0 flex flex-col gap-0.5">
+        <span class="text-sm font-medium truncate" style="color: #0f1117;">${doc.filename}</span>
+        <div class="flex gap-2 text-xs" style="color: #9ca3af;">
+          ${typeLabel ? `<span>${typeLabel}</span>` : ""}
+          <span>${formatChars(doc.content_length)}</span>
+          <span>${formatDate(doc.created_at)}</span>
+        </div>
+      </div>
+      <button class="del-doc-btn text-xs font-medium px-3 py-1.5 rounded-lg transition-colors flex-shrink-0"
+        data-id="${doc.id}"
+        style="color: #dc2626; border: 1px solid rgba(220,38,38,0.2);"
+        onmouseover="this.style.background='rgba(220,38,38,0.07)'" onmouseout="this.style.background='transparent'">
+        Quitar
+      </button>
+    `;
+
+    row.querySelector(".del-doc-btn")?.addEventListener("click", () => deleteDoc(doc.id));
+    return row;
+  }
+
+  async function deleteDoc(docId: string) {
+    const res = await fetch(
+      `/api/tax/periods/${encodeURIComponent(periodId)}/documents/${encodeURIComponent(docId)}`,
+      { method: "DELETE", headers: authHdr() }
+    );
+    if (handleUnauth(res.status)) return;
+    if (!res.ok) { showAlert("No se pudo eliminar el documento."); return; }
+
+    document.getElementById(`doc-row-${docId}`)?.remove();
+    currentDocs = currentDocs.filter(d => d.id !== docId);
+    updateDocCount(currentDocs.length);
+    if (currentDocs.length === 0) {
+      docsEmpty.classList.remove("hidden");
+      docsList.classList.add("hidden");
+      analyzeCta.classList.add("hidden");
+      btnConsolidate.classList.add("hidden");
+    }
+  }
+
+  async function loadDocuments() {
+    const res = await fetch(`/api/tax/periods/${encodeURIComponent(periodId)}/documents`, {
+      headers: authHdr(),
+    });
+    if (handleUnauth(res.status)) return;
+    docsLoading.classList.add("hidden");
+
+    if (!res.ok) { showAlert("No se pudo cargar la lista de documentos."); return; }
+
+    const data = await res.json() as {
+      period: { id: string; label: string; status: string };
+      documents: TaxDoc[];
+    };
+
+    // Update header from period data
+    periodLabel = data.period.label;
+    periodTitle.textContent  = data.period.label;
+    breadLabel.textContent   = data.period.label;
+    periodSubtitle.textContent = "Análisis de situación impositiva mensual";
+    isAnalyzed = data.period.status === "analyzed";
+    setPeriodBadge(data.period.status);
+
+    currentDocs = data.documents;
+
+    if (data.documents.length === 0) {
+      docsEmpty.classList.remove("hidden");
+    } else {
+      docsList.innerHTML = "";
+      for (const doc of data.documents) {
+        docsList.appendChild(buildDocRow(doc));
+      }
+      docsList.classList.remove("hidden");
+      analyzeCta.classList.remove("hidden");
+      btnConsolidate.classList.remove("hidden");
+    }
+    updateDocCount(data.documents.length);
+  }
+
+  // ── Period badge ───────────────────────────────────────────────────────────
+  function setPeriodBadge(status: string) {
+    if (status === "analyzed") {
+      periodBadge.style.cssText = "background: rgba(5,150,105,0.1); color: #065f46;";
+      periodBadge.textContent   = "Analizado";
+    } else {
+      periodBadge.style.cssText = "background: rgba(100,116,139,0.1); color: #475569;";
+      periodBadge.textContent   = "Pendiente";
+    }
+    periodBadge.classList.remove("hidden");
+  }
+
+  // ── Consolidation ──────────────────────────────────────────────────────────
+  async function runConsolidation() {
+    btnConsolidate.disabled    = true;
+    btnConsolidateText.textContent = "Analizando…";
+    if (btnConsolidateDocs) {
+      (btnConsolidateDocs as HTMLButtonElement).disabled = true;
+      btnConsolidateDocs.textContent = "Analizando…";
+    }
+
+    switchTab("analysis");
+    analysisEmpty.classList.add("hidden");
+    analysisResults.classList.add("hidden");
+    analysisLoading.classList.remove("hidden");
+
+    const res = await fetch(`/api/tax/periods/${encodeURIComponent(periodId)}/consolidate`, {
+      method: "POST", headers: authHdr(),
+    });
+    if (handleUnauth(res.status)) return;
+
+    analysisLoading.classList.add("hidden");
+
+    const data = await res.json() as { ok?: boolean; response?: string; error?: string };
+
+    if (!res.ok || !data.ok) {
+      showAlert(data.error ?? "Error al ejecutar el análisis.");
+      analysisEmpty.classList.remove("hidden");
+    } else {
+      isAnalyzed = true;
+      setPeriodBadge("analyzed");
+      renderAnalysis(data.response ?? "", Math.floor(Date.now() / 1000));
+    }
+
+    btnConsolidate.disabled    = false;
+    btnConsolidateText.textContent = "Analizar con IA";
+    if (btnConsolidateDocs) {
+      (btnConsolidateDocs as HTMLButtonElement).disabled = false;
+      btnConsolidateDocs.textContent = "Analizar con IA";
+    }
+  }
+
+  btnConsolidate?.addEventListener("click",     runConsolidation);
+  btnConsolidateDocs?.addEventListener("click", runConsolidation);
+  btnReanalyze?.addEventListener("click",       runConsolidation);
+
+  // ── Load and render existing analysis ─────────────────────────────────────
+  async function loadConsolidation() {
+    const res = await fetch(`/api/tax/periods/${encodeURIComponent(periodId)}/consolidation`, {
+      headers: authHdr(),
+    });
+    if (handleUnauth(res.status)) return;
+    if (!res.ok) return;
+
+    const data = await res.json() as {
+      analyzed: boolean;
+      raw_response?: string;
+      created_at?: number;
+    };
+    if (data.analyzed && data.raw_response) {
+      isAnalyzed = true;
+      // Pre-render analysis data without switching tab
+      renderAnalysis(data.raw_response, data.created_at ?? 0);
+    }
+  }
+
+  // ── Parse and render analysis ──────────────────────────────────────────────
+  function extractJson(raw: string): ConsolidationData | null {
+    // Try direct parse
+    try { return JSON.parse(raw) as ConsolidationData; } catch { /* fallthrough */ }
+    // Try to extract JSON object from markdown code blocks
+    const codeMatch = raw.match(/```(?:json)?\s*([\s\S]*?)```/);
+    if (codeMatch) {
+      try { return JSON.parse(codeMatch[1].trim()) as ConsolidationData; } catch { /* fallthrough */ }
+    }
+    // Try to find first '{' … last '}'
+    const start = raw.indexOf("{");
+    const end   = raw.lastIndexOf("}");
+    if (start !== -1 && end > start) {
+      try { return JSON.parse(raw.slice(start, end + 1)) as ConsolidationData; } catch { /* fallthrough */ }
+    }
+    return null;
+  }
+
+  function renderAnalysis(raw: string, createdAt: number) {
+    rawResponseEl.textContent = raw;
+    analysisResults.classList.remove("hidden");
+    analysisEmpty.classList.add("hidden");
+
+    const data = extractJson(raw);
+
+    if (data?.resumen) {
+      analysisSummary.textContent = data.resumen;
+    } else {
+      analysisSummary.textContent = "El modelo retornó una respuesta (ver respuesta completa abajo).";
+    }
+
+    if (data?.total_a_pagar != null) {
+      totalAmount.textContent = formatMoney(data.total_a_pagar);
+      totalBadge.classList.remove("hidden");
+      totalBadge.classList.add("flex");
+    }
+
+    if (createdAt) {
+      analysisDate.textContent = `Generado el ${formatDate(createdAt)}`;
+    }
+
+    // Alerts
+    alertsContainer.innerHTML = "";
+    if (data?.alertas && data.alertas.length > 0) {
+      alertsContainer.classList.remove("hidden");
+      for (const a of data.alertas) {
+        const el = document.createElement("div");
+        el.className = "rounded-xl px-4 py-3 text-sm flex items-start gap-2";
+        el.style.cssText = "background: rgba(251,191,36,0.1); border: 1px solid rgba(251,191,36,0.3); color: #92400e;";
+        el.innerHTML = `<svg class="w-4 h-4 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z"/></svg><span>${a}</span>`;
+        alertsContainer.appendChild(el);
+      }
+    } else {
+      alertsContainer.classList.add("hidden");
+    }
+
+    // Tax table
+    taxTableBody.innerHTML = "";
+    if (data?.impuestos && data.impuestos.length > 0) {
+      for (const item of data.impuestos) {
+        const estado = item.estado ?? "informativo";
+        const badgeStyle = STATUS_STYLE[estado] ?? STATUS_STYLE.informativo;
+        const badgeLabel = STATUS_LABEL_MAP[estado] ?? estado;
+
+        const tr = document.createElement("tr");
+        tr.style.cssText = "border-bottom: 1px solid rgba(0,0,0,0.04);";
+        tr.innerHTML = `
+          <td class="px-5 py-3">
+            <div class="flex flex-col gap-0.5">
+              <span class="text-sm font-medium" style="color: #0f1117;">${item.tipo}</span>
+              ${item.notas ? `<span class="text-xs" style="color: #9ca3af;">${item.notas}</span>` : ""}
+            </div>
+          </td>
+          <td class="px-4 py-3 text-right text-sm" style="color: #374151;">${formatMoney(item.base_imponible)}</td>
+          <td class="px-4 py-3 text-right text-sm" style="color: #374151;">${item.tasa != null ? item.tasa + "%" : "—"}</td>
+          <td class="px-4 py-3 text-right text-sm font-medium" style="color: #0f1117;">${formatMoney(item.monto_estimado)}</td>
+          <td class="px-4 py-3 text-sm" style="color: #374151;">${item.vencimiento ?? "—"}</td>
+          <td class="px-4 py-3">
+            <span class="text-xs font-medium px-2 py-0.5 rounded-full" style="${badgeStyle}">${badgeLabel}</span>
+          </td>
+        `;
+        taxTableBody.appendChild(tr);
+      }
+    } else {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `<td colspan="6" class="px-5 py-6 text-center text-sm" style="color: #9ca3af;">No se identificaron impuestos en el análisis.</td>`;
+      taxTableBody.appendChild(tr);
+    }
+  }
+
+  // ── Init ───────────────────────────────────────────────────────────────────
+  async function init() {
+    const params = new URLSearchParams(window.location.search);
+    periodId = params.get("id") ?? "";
+    if (!periodId) {
+      window.location.replace("/app/impuestos");
+      return;
+    }
+
+    await loadDocuments();
+    await loadConsolidation();
+  }
+
+  init();
+</script>
