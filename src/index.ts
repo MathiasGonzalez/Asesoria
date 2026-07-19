@@ -21,6 +21,7 @@ interface Bindings {
   EMAIL_SEND?: SendEmailBinding;
   EMAIL_API_KEY?: string;
   EMAIL_FROM: string;
+  DOCUMENTS_BUCKET?: R2Bucket;
 }
 
 type Variables = {
@@ -721,11 +722,13 @@ app.get("/api/tax/periods/:id/documents", requireAuth, async (c) => {
   if (!period) return c.json({ error: "Período no encontrado." }, 404);
 
   const rows = await c.env.DB.prepare(
-    `SELECT id, filename, doc_type, created_at, LENGTH(content) AS content_length
+    `SELECT id, filename, doc_type, created_at, LENGTH(content) AS content_length,
+            (r2_key IS NOT NULL) AS has_file, source
      FROM tax_documents WHERE period_id = ? ORDER BY created_at ASC`
   ).bind(periodId).all<{
     id: string; filename: string; doc_type: string | null;
     created_at: number; content_length: number;
+    has_file: number; source: string | null;
   }>();
 
   return c.json({ period, documents: rows.results });
@@ -764,12 +767,180 @@ app.post("/api/tax/periods/:id/documents", requireAuth, async (c) => {
 
   const docId = crypto.randomUUID();
   await c.env.DB.prepare(
-    `INSERT INTO tax_documents (id, period_id, user_id, filename, content, doc_type) VALUES (?, ?, ?, ?, ?, ?)`
-  ).bind(docId, periodId, userId, filename.trim(), content.trim(), doc_type?.trim() || null).run();
+    `INSERT INTO tax_documents (id, period_id, user_id, filename, content, doc_type, source) VALUES (?, ?, ?, ?, ?, ?, ?)`
+  ).bind(docId, periodId, userId, filename.trim(), content.trim(), doc_type?.trim() || null, "paste").run();
 
   return c.json({
     ok: true,
     document: { id: docId, filename: filename.trim(), doc_type: doc_type?.trim() || null, content_length: content.length },
+  }, 201);
+});
+
+// POST /api/tax/periods/:id/upload  – multipart file upload stored in R2
+// FormData fields: file (required), doc_type (optional)
+app.post("/api/tax/periods/:id/upload", requireAuth, async (c) => {
+  const userId   = c.get("userId");
+  const periodId = c.req.param("id");
+
+  const period = await c.env.DB.prepare(
+    "SELECT id FROM tax_periods WHERE id = ? AND user_id = ?"
+  ).bind(periodId, userId).first<{ id: string }>();
+  if (!period) return c.json({ error: "Período no encontrado." }, 404);
+
+  const count = await c.env.DB.prepare(
+    "SELECT COUNT(*) AS n FROM tax_documents WHERE period_id = ?"
+  ).bind(periodId).first<{ n: number }>();
+  if ((count?.n ?? 0) >= TAX_MAX_DOCS) {
+    return c.json({ error: `Límite de ${TAX_MAX_DOCS} documentos por período alcanzado.` }, 422);
+  }
+
+  let formData: FormData;
+  try {
+    formData = await c.req.formData();
+  } catch {
+    return c.json({ error: "Se esperaba un formulario multipart." }, 400);
+  }
+
+  const file = formData.get("file") as File | null;
+  if (!file || !(file instanceof File)) {
+    return c.json({ error: "Se requiere el campo 'file'." }, 400);
+  }
+
+  const MAX_FILE_BYTES = 10 * 1024 * 1024; // 10 MB
+  if (file.size > MAX_FILE_BYTES) {
+    return c.json({ error: "El archivo excede el límite de 10 MB." }, 413);
+  }
+
+  const doc_type  = (formData.get("doc_type") as string | null)?.trim() || null;
+  const filename  = file.name;
+  const mimeType  = file.type || "application/octet-stream";
+  const fileSize  = file.size;
+
+  // Extract text content for AI analysis (text-based files only)
+  const TEXT_MIMES = ["text/", "application/json", "application/csv", "application/xml"];
+  const isTextLike = TEXT_MIMES.some(m => mimeType.startsWith(m)) ||
+    /\.(txt|csv|json|md|xml|html|htm|log|tsv|toml|yaml|yml)$/i.test(filename);
+
+  let content = "";
+  if (isTextLike) {
+    content = await file.text();
+    if (content.length > TAX_MAX_CHARS) {
+      content = content.slice(0, TAX_MAX_CHARS);
+    }
+  }
+
+  // Store original file in R2 (if bucket is configured)
+  let r2Key: string | null = null;
+  if (c.env.DOCUMENTS_BUCKET) {
+    r2Key = `tax/${userId}/${periodId}/${crypto.randomUUID()}/${filename}`;
+    const bytes = await file.arrayBuffer();
+    await c.env.DOCUMENTS_BUCKET.put(r2Key, bytes, {
+      httpMetadata: { contentType: mimeType },
+      customMetadata: { userId, periodId },
+    });
+  }
+
+  const docId = crypto.randomUUID();
+  await c.env.DB.prepare(
+    `INSERT INTO tax_documents (id, period_id, user_id, filename, content, doc_type, r2_key, mime_type, file_size, source)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  ).bind(docId, periodId, userId, filename, content, doc_type, r2Key, mimeType, fileSize, "upload").run();
+
+  return c.json({
+    ok: true,
+    document: {
+      id: docId,
+      filename,
+      doc_type,
+      content_length: content.length,
+      mime_type: mimeType,
+      file_size: fileSize,
+      has_file: r2Key !== null,
+      text_extracted: isTextLike,
+    },
+  }, 201);
+});
+
+// POST /api/tax/periods/:id/import-gdoc  – import text from a public Google Docs/Sheets URL
+// Body: { url: string, doc_type?: string, filename?: string }
+app.post("/api/tax/periods/:id/import-gdoc", requireAuth, async (c) => {
+  const userId   = c.get("userId");
+  const periodId = c.req.param("id");
+
+  const period = await c.env.DB.prepare(
+    "SELECT id FROM tax_periods WHERE id = ? AND user_id = ?"
+  ).bind(periodId, userId).first<{ id: string }>();
+  if (!period) return c.json({ error: "Período no encontrado." }, 404);
+
+  const count = await c.env.DB.prepare(
+    "SELECT COUNT(*) AS n FROM tax_documents WHERE period_id = ?"
+  ).bind(periodId).first<{ n: number }>();
+  if ((count?.n ?? 0) >= TAX_MAX_DOCS) {
+    return c.json({ error: `Límite de ${TAX_MAX_DOCS} documentos por período alcanzado.` }, 422);
+  }
+
+  const body = await c.req.json<{ url?: string; doc_type?: string; filename?: string }>();
+  const rawUrl    = body.url?.trim();
+  const doc_type  = body.doc_type?.trim() || null;
+  const customFilename = body.filename?.trim() || null;
+
+  if (!rawUrl) return c.json({ error: "La URL es requerida." }, 400);
+
+  // Parse Google Docs or Sheets URL
+  const docMatch   = rawUrl.match(/\/document\/d\/([a-zA-Z0-9_-]+)/);
+  const sheetMatch = rawUrl.match(/\/spreadsheets\/d\/([a-zA-Z0-9_-]+)/);
+
+  let exportUrl: string;
+  let defaultFilename: string;
+
+  if (docMatch) {
+    exportUrl       = `https://docs.google.com/document/d/${docMatch[1]}/export?format=txt`;
+    defaultFilename = customFilename ?? `google-doc-${docMatch[1].slice(0, 8)}.txt`;
+  } else if (sheetMatch) {
+    exportUrl       = `https://docs.google.com/spreadsheets/d/${sheetMatch[1]}/export?format=csv`;
+    defaultFilename = customFilename ?? `google-sheet-${sheetMatch[1].slice(0, 8)}.csv`;
+  } else {
+    return c.json(
+      { error: "URL no válida. Aceptamos enlaces de Google Docs o Google Sheets." },
+      400
+    );
+  }
+
+  let content: string;
+  try {
+    const res = await fetch(exportUrl, { redirect: "follow" });
+    if (!res.ok) {
+      return c.json(
+        { error: "No se pudo acceder al documento. Verificá que esté compartido como 'Cualquier persona con el enlace puede ver'." },
+        422
+      );
+    }
+    content = await res.text();
+  } catch {
+    return c.json({ error: "Error al conectar con Google. Intentá nuevamente." }, 502);
+  }
+
+  if (!content.trim()) {
+    return c.json({ error: "El documento está vacío o no se pudo leer su contenido." }, 422);
+  }
+  if (content.length > TAX_MAX_CHARS) {
+    content = content.slice(0, TAX_MAX_CHARS);
+  }
+
+  const docId = crypto.randomUUID();
+  await c.env.DB.prepare(
+    `INSERT INTO tax_documents (id, period_id, user_id, filename, content, doc_type, source, source_url)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+  ).bind(docId, periodId, userId, defaultFilename, content, doc_type, "gdoc", rawUrl).run();
+
+  return c.json({
+    ok: true,
+    document: {
+      id: docId,
+      filename: defaultFilename,
+      doc_type,
+      content_length: content.length,
+    },
   }, 201);
 });
 
@@ -784,11 +955,60 @@ app.delete("/api/tax/periods/:id/documents/:docId", requireAuth, async (c) => {
   ).bind(periodId, userId).first<{ id: string }>();
   if (!period) return c.json({ error: "Período no encontrado." }, 404);
 
+  // Fetch R2 key before deletion so we can clean up the stored file
+  const doc = await c.env.DB.prepare(
+    "SELECT r2_key FROM tax_documents WHERE id = ? AND period_id = ?"
+  ).bind(docId, periodId).first<{ r2_key: string | null }>();
+
   await c.env.DB.prepare(
     "DELETE FROM tax_documents WHERE id = ? AND period_id = ?"
   ).bind(docId, periodId).run();
 
+  // Clean up R2 object (non-blocking — failure must not break the response)
+  if (doc?.r2_key && c.env.DOCUMENTS_BUCKET) {
+    c.executionCtx?.waitUntil(
+      c.env.DOCUMENTS_BUCKET.delete(doc.r2_key).catch((err: unknown) =>
+        console.error("R2 delete failed:", err)
+      )
+    );
+  }
+
   return c.json({ ok: true });
+});
+
+// GET /api/tax/periods/:id/documents/:docId/download  – serve original file from R2
+app.get("/api/tax/periods/:id/documents/:docId/download", requireAuth, async (c) => {
+  const userId   = c.get("userId");
+  const periodId = c.req.param("id");
+  const docId    = c.req.param("docId");
+
+  const doc = await c.env.DB.prepare(`
+    SELECT d.filename, d.mime_type, d.r2_key
+    FROM tax_documents d
+    JOIN tax_periods p ON p.id = d.period_id
+    WHERE d.id = ? AND d.period_id = ? AND p.user_id = ?
+  `).bind(docId, periodId, userId).first<{
+    filename: string;
+    mime_type: string | null;
+    r2_key: string | null;
+  }>();
+
+  if (!doc) return c.json({ error: "Documento no encontrado." }, 404);
+  if (!doc.r2_key || !c.env.DOCUMENTS_BUCKET) {
+    return c.json({ error: "Este documento no tiene archivo almacenado." }, 404);
+  }
+
+  const object = await c.env.DOCUMENTS_BUCKET.get(doc.r2_key);
+  if (!object) return c.json({ error: "Archivo no encontrado en almacenamiento." }, 404);
+
+  const safeFilename = encodeURIComponent(doc.filename).replace(/%20/g, " ");
+  return new Response(object.body, {
+    headers: {
+      "Content-Type":        doc.mime_type ?? "application/octet-stream",
+      "Content-Disposition": `attachment; filename="${safeFilename}"`,
+      "Cache-Control":       "private, no-cache",
+    },
+  });
 });
 
 // POST /api/tax/periods/:id/consolidate  – run AI tax consolidation
