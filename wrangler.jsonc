@@ -18,6 +18,15 @@
     }
   ],
 
+  // R2 bucket for persistent document storage (tax period uploads).
+  // Create with: npx wrangler r2 bucket create adviser-documents
+  "r2_buckets": [
+    {
+      "binding": "DOCUMENTS_BUCKET",
+      "bucket_name": "adviser-documents"
+    }
+  ],
+
   // Vectorize semantic index.
   // Create with: npx wrangler vectorize create advisor-uy-index --dimensions=1024 --metric=cosine
   // Model: @cf/baai/bge-m3 (multilingual, 1024 dims) — supports Spanish legal corpus.
@@ -31,6 +40,12 @@
 
   "ai": {
     "binding": "AI"
+  },
+
+  // Cloudflare Browser Rendering – powers DGI/BPS portal automation.
+  // Enable with: npx wrangler browser render enable  (requires paid plan)
+  "browser": {
+    "binding": "BROWSER"
   },
 
   // Workers Rate Limiting – 20 requests per IP per 60 seconds
@@ -56,8 +71,11 @@
   ],
 
   // Secrets (set via `wrangler secret put <NAME>`):
-  //   EMAIL_FROM     – Verified sender address, e.g. "noreply@yourdomain.com"
-  //   EMAIL_API_KEY  – Resend API key (fallback, only needed without EMAIL_SEND binding)
+  //   EMAIL_FROM              – Verified sender address, e.g. "noreply@yourdomain.com"
+  //   EMAIL_API_KEY           – Resend API key (fallback, only needed without EMAIL_SEND binding)
+  //   PORTAL_ENCRYPTION_KEY   – 64-char hex string (32 bytes) for AES-256-GCM encryption of
+  //                             DGI/BPS portal session cookies. Generate with:
+  //                             node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 
   // -------------------------------------------------------------------------
   // Develop environment – separate Worker + D1 + Vectorize index
@@ -72,6 +90,13 @@
           "database_name": "advisor_uy_db_develop",
           "database_id": "REPLACE_WITH_DEVELOP_D1_DATABASE_ID",
           "migrations_dir": "./migrations"
+        }
+      ],
+
+      "r2_buckets": [
+        {
+          "binding": "DOCUMENTS_BUCKET",
+          "bucket_name": "adviser-documents-develop"
         }
       ],
 

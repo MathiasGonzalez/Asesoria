@@ -1,16 +1,50 @@
+/**
+ * AuthService — passwordless OTP authentication and session management.
+ *
+ * ## Flow
+ * 1. Client calls `requestOtp(email)` → a 6-digit code is stored in D1 and
+ *    returned to the caller for delivery via email.
+ * 2. Client calls `verifyOtp(email, code)` → validates the code and issues a
+ *    session token (UUID). On **first login** a new tenant is provisioned
+ *    automatically using the email domain as the tenant name, and the user is
+ *    created with the `admin` role.
+ * 3. Subsequent requests include the token as `Authorization: ******;
+ *    `validateSession(token)` resolves it to a `SessionPayload`.
+ * 4. `revokeSession(token)` permanently deletes the session row (logout).
+ *
+ * ## Security properties
+ * - OTP codes are single-use (consumed immediately upon successful verification).
+ * - Previous unused OTPs for the same email are invalidated before issuing a new one.
+ * - OTPs expire after 10 minutes; sessions expire after 24 hours.
+ * - Session tokens are cryptographically random UUIDs (128 bits of entropy).
+ */
+
+/** Minimal D1 binding required by AuthService. */
 export interface AuthEnv {
   DB: D1Database;
 }
 
+/**
+ * Decoded session payload returned by `validateSession`.
+ * These values are injected into Hono request context variables
+ * so every authenticated route handler can access them via `c.get(...)`.
+ */
 export interface SessionPayload {
+  /** UUID of the authenticated user row. */
   userId: string;
+  /** UUID of the tenant the user belongs to. */
   tenantId: string;
+  /** Verified email address. */
   email: string;
+  /** RBAC role: `'admin'` or `'viewer'`. */
   role: string;
 }
 
-const OTP_EXPIRY_SECONDS = 600;    // 10 minutes
-const SESSION_EXPIRY_SECONDS = 86400; // 24 hours
+/** OTP validity window in seconds (10 minutes). */
+const OTP_EXPIRY_SECONDS = 600;
+/** Session validity window in seconds (24 hours). */
+const SESSION_EXPIRY_SECONDS = 86400;
+/** Number of decimal digits in each generated OTP code. */
 const OTP_DIGITS = 6;
 
 function generateOtp(): string {

@@ -27,6 +27,32 @@ const { title } = Astro.props;
   <body class="text-[#0f1117] antialiased">
     <nav style="background: rgba(255,255,255,0.9); backdrop-filter: blur(20px) saturate(180%); border-bottom: 1px solid rgba(0,0,0,0.08); box-shadow: 0 1px 0 rgba(0,0,0,0.04);" class="px-6 py-3.5 flex items-center justify-between sticky top-0 z-10">
       <a href="/app" class="font-bold text-xl tracking-tight" style="font-family: var(--font-display); color: #0f1117; letter-spacing: -0.03em;">Adviser<span style="color: #c8992a;">.</span></a>
+      <div class="hidden md:flex items-center gap-1" id="app-nav">
+        <a href="/app" id="nav-asistente"
+          class="app-nav-link text-xs font-medium px-3 py-1.5 rounded-lg transition-colors"
+          style="color: #6b7280;"
+          onmouseover="this.style.background='rgba(0,0,0,0.04)'" onmouseout="if(!this.classList.contains('nav-active'))this.style.background='transparent'">
+          Asistente
+        </a>
+        <a href="/app/impuestos" id="nav-impuestos"
+          class="app-nav-link text-xs font-medium px-3 py-1.5 rounded-lg transition-colors"
+          style="color: #6b7280;"
+          onmouseover="this.style.background='rgba(0,0,0,0.04)'" onmouseout="if(!this.classList.contains('nav-active'))this.style.background='transparent'">
+          Impuestos
+        </a>
+        <a href="/app/calendario" id="nav-calendario"
+          class="app-nav-link text-xs font-medium px-3 py-1.5 rounded-lg transition-colors"
+          style="color: #6b7280;"
+          onmouseover="this.style.background='rgba(0,0,0,0.04)'" onmouseout="if(!this.classList.contains('nav-active'))this.style.background='transparent'">
+          Calendario
+        </a>
+        <a href="/app/empresas" id="nav-empresas"
+          class="app-nav-link text-xs font-medium px-3 py-1.5 rounded-lg transition-colors"
+          style="color: #6b7280;"
+          onmouseover="this.style.background='rgba(0,0,0,0.04)'" onmouseout="if(!this.classList.contains('nav-active'))this.style.background='transparent'">
+          Empresas
+        </a>
+      </div>
       <div class="flex items-center gap-4">
         <span id="user-email" class="text-xs hidden" style="color: #6b7280;"></span>
         <button
@@ -75,6 +101,24 @@ const { title } = Astro.props;
       }
 
       initSession();
+
+      // Highlight active nav link based on current path
+      const path = window.location.pathname;
+      const navMap: Record<string, string> = {
+        "nav-asistente":  "/app",
+        "nav-impuestos":  "/app/impuestos",
+        "nav-calendario": "/app/calendario",
+        "nav-empresas":   "/app/empresas",
+      };
+      for (const [id, href] of Object.entries(navMap)) {
+        const el = document.getElementById(id) as HTMLAnchorElement | null;
+        if (!el) continue;
+        const isActive = href === "/app" ? path === "/app" || path === "/app/" : path.startsWith(href);
+        if (isActive) {
+          el.classList.add("nav-active");
+          el.style.cssText = "background: rgba(79,70,229,0.08); color: #4f46e5;";
+        }
+      }
 
       // Display email from decoded session info stored after login
       const storedEmail = sessionStorage.getItem("adviser_email");

@@ -1,0 +1,357 @@
+---
+import AppLayout from "../../layouts/AppLayout.astro";
+---
+
+<AppLayout title="Calendario Impositivo">
+  <!-- Header -->
+  <div class="flex items-start justify-between gap-4 flex-wrap">
+    <div class="flex flex-col gap-1">
+      <h1 class="text-2xl font-bold tracking-tight" style="color: #0f1117;">Calendario Impositivo</h1>
+      <p class="text-sm" style="color: #6b7280; line-height: 1.6;">
+        Vencimientos DGI y BPS para Uruguay. Las fechas son aproximadas y pueden variar según el dígito verificador del RUT.
+      </p>
+    </div>
+    <div class="flex items-center gap-2">
+      <button id="btn-prev" class="rounded-lg p-2 transition-colors"
+        style="border: 1px solid rgba(0,0,0,0.1); color: #374151;"
+        onmouseover="this.style.background='rgba(0,0,0,0.04)'" onmouseout="this.style.background='transparent'"
+        aria-label="Mes anterior">
+        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
+        </svg>
+      </button>
+      <span id="month-label" class="text-sm font-semibold px-3" style="color: #0f1117; min-width: 140px; text-align: center;"></span>
+      <button id="btn-next" class="rounded-lg p-2 transition-colors"
+        style="border: 1px solid rgba(0,0,0,0.1); color: #374151;"
+        onmouseover="this.style.background='rgba(0,0,0,0.04)'" onmouseout="this.style.background='transparent'"
+        aria-label="Mes siguiente">
+        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- Legend -->
+  <div class="flex flex-wrap gap-3 text-xs" style="color: #6b7280;">
+    <span class="flex items-center gap-1.5">
+      <span class="w-2.5 h-2.5 rounded-full flex-shrink-0" style="background: #dc2626;"></span>
+      Vence hoy / vencido
+    </span>
+    <span class="flex items-center gap-1.5">
+      <span class="w-2.5 h-2.5 rounded-full flex-shrink-0" style="background: #f59e0b;"></span>
+      Vence en ≤ 7 días
+    </span>
+    <span class="flex items-center gap-1.5">
+      <span class="w-2.5 h-2.5 rounded-full flex-shrink-0" style="background: #059669;"></span>
+      Próximo
+    </span>
+    <span class="flex items-center gap-1.5">
+      <span class="w-2.5 h-2.5 rounded-full flex-shrink-0" style="background: #6b7280;"></span>
+      Sin vencer / cumplido
+    </span>
+  </div>
+
+  <!-- Calendar list -->
+  <div id="calendar-container" class="flex flex-col gap-4"></div>
+
+  <!-- Info box -->
+  <div class="rounded-2xl p-5 flex gap-4" style="background: rgba(79,70,229,0.04); border: 1px solid rgba(79,70,229,0.12);">
+    <svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="color: #4f46e5;">
+      <path stroke-linecap="round" stroke-linejoin="round" d="m11.25 11.25.041-.02a.75.75 0 0 1 1.063.852l-.708 2.836a.75.75 0 0 0 1.063.853l.041-.021M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75h.008v.008H12V8.25Z" />
+    </svg>
+    <div class="flex flex-col gap-1">
+      <p class="text-sm font-medium" style="color: #3730a3;">Recordatorio importante</p>
+      <p class="text-xs leading-relaxed" style="color: #4f46e5;">
+        Las fechas exactas de vencimiento de DGI dependen del último dígito del número de RUT de tu empresa.
+        Verificá siempre en el sitio oficial de <a href="https://www.dgi.gub.uy" target="_blank" rel="noopener" class="underline">DGI (dgi.gub.uy)</a>
+        y <a href="https://www.bps.gub.uy" target="_blank" rel="noopener" class="underline">BPS (bps.gub.uy)</a>.
+        Este calendario es orientativo y no constituye asesoramiento fiscal.
+      </p>
+    </div>
+  </div>
+</AppLayout>
+
+<script>
+  // ── Uruguay tax obligations calendar ──────────────────────────────────────
+
+  const MONTH_NAMES = [
+    "Enero","Febrero","Marzo","Abril","Mayo","Junio",
+    "Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"
+  ];
+
+  interface Obligation {
+    name: string;
+    description: string;
+    category: "DGI" | "BPS" | "DGI/BPS";
+    dueDay: number;       // day of month when it's due (in the *following* month)
+    dueInSameMonth?: boolean; // if true, due in the reference month itself (annual obligations)
+    dueMonth?: number;    // for annual obligations, specific month (1-12)
+    regimens?: string[];  // if set, only for these regimens (empty = all)
+    formRef?: string;     // DGI form reference
+    links?: string[];
+  }
+
+  // Monthly obligations (due in following month)
+  const MONTHLY_OBLIGATIONS: Obligation[] = [
+    {
+      name: "IVA — Declaración mensual",
+      description: "Declaración y pago del IVA del mes anterior. IVA ventas menos IVA compras (crédito fiscal).",
+      category: "DGI",
+      dueDay: 20,
+      formRef: "F.F. (Flujo Financiero) / Form IVA mensual",
+      regimens: ["real", "forfait", "pequena_empresa"],
+      links: ["https://www.dgi.gub.uy"],
+    },
+    {
+      name: "IRAE — Anticipo mensual",
+      description: "Pago del anticipo mensual a cuenta del IRAE del ejercicio. Equivale a aprox. 1/12 del impuesto estimado anual.",
+      category: "DGI",
+      dueDay: 20,
+      formRef: "Anticipo IRAE (F.F.)",
+      regimens: ["real", "forfait", "pequena_empresa"],
+    },
+    {
+      name: "IRPF — Retenciones Cat. 2 (empleadores)",
+      description: "Retención del Impuesto a la Renta a empleados en relación de dependencia. Incluye escala progresiva.",
+      category: "DGI",
+      dueDay: 20,
+      formRef: "Formulario 2181",
+      links: ["https://www.dgi.gub.uy"],
+    },
+    {
+      name: "BPS — Nómina patronal y personal",
+      description: "Declaración y pago de aportes patronales (jubilaciones 7.5%, FONASA 5%) y personales (jubilaciones 15%, FONASA 3-6%).",
+      category: "BPS",
+      dueDay: 10,
+      formRef: "Sistema SUNA (bps.gub.uy)",
+      links: ["https://www.bps.gub.uy"],
+    },
+    {
+      name: "Monotributo — Cuota mensual",
+      description: "Pago unificado de BPS y DGI para pequeños contribuyentes en régimen de Monotributo (Categorías A, B, C).",
+      category: "DGI/BPS",
+      dueDay: 10,
+      regimens: ["monotributo"],
+      links: ["https://www.bps.gub.uy", "https://www.dgi.gub.uy"],
+    },
+    {
+      name: "IRNR — Retenciones del mes",
+      description: "Retenciones del Impuesto a la Renta de No Residentes realizadas por pagadores locales en el período.",
+      category: "DGI",
+      dueDay: 20,
+      formRef: "Formulario IRNR",
+    },
+  ];
+
+  // Annual obligations (fixed month+day in the year following the fiscal year)
+  interface AnnualObligation {
+    name: string;
+    description: string;
+    category: "DGI" | "BPS" | "DGI/BPS";
+    dueMonth: number; // 1-12
+    dueDay: number;
+    formRef?: string;
+    links?: string[];
+  }
+
+  const ANNUAL_OBLIGATIONS: AnnualObligation[] = [
+    {
+      name: "IRAE — Declaración jurada anual",
+      description: "Declaración jurada anual del Impuesto a la Renta de Actividades Empresariales. Incluye el ajuste final contra anticipos pagados.",
+      category: "DGI",
+      dueMonth: 4, // April
+      dueDay: 20,
+      formRef: "Formulario 1101",
+      links: ["https://www.dgi.gub.uy"],
+    },
+    {
+      name: "IP — Impuesto al Patrimonio (declaración anual)",
+      description: "Declaración y pago del Impuesto al Patrimonio. Tasa: 1.5% para empresas sobre patrimonio fiscal neto.",
+      category: "DGI",
+      dueMonth: 4,
+      dueDay: 20,
+      formRef: "Formulario IP / BGU",
+    },
+    {
+      name: "IRPF — Declaración jurada anual (empleados)",
+      description: "Declaración jurada anual del IRPF para empleados en relación de dependencia. Permite ajuste de retenciones y devoluciones.",
+      category: "DGI",
+      dueMonth: 6,
+      dueDay: 30,
+      formRef: "Formulario 1102",
+      links: ["https://www.dgi.gub.uy"],
+    },
+  ];
+
+  // ── State ─────────────────────────────────────────────────────────────────
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  let viewYear  = today.getFullYear();
+  let viewMonth = today.getMonth() + 1; // 1-12
+
+  const container   = document.getElementById("calendar-container") as HTMLDivElement;
+  const monthLabel  = document.getElementById("month-label") as HTMLSpanElement;
+  const btnPrev     = document.getElementById("btn-prev") as HTMLButtonElement;
+  const btnNext     = document.getElementById("btn-next") as HTMLButtonElement;
+
+  btnPrev?.addEventListener("click", () => {
+    viewMonth--;
+    if (viewMonth < 1) { viewMonth = 12; viewYear--; }
+    render();
+  });
+  btnNext?.addEventListener("click", () => {
+    viewMonth++;
+    if (viewMonth > 12) { viewMonth = 1; viewYear++; }
+    render();
+  });
+
+  function getDueDate(dueDay: number, dueMonth: number, dueYear: number): Date {
+    return new Date(dueYear, dueMonth - 1, dueDay);
+  }
+
+  function urgencyStyle(dueDate: Date): { dot: string; badge: string; row: string } {
+    const msPerDay = 86_400_000;
+    const normalized = new Date(dueDate);
+    normalized.setHours(0, 0, 0, 0);
+    const diff = Math.floor((normalized.getTime() - today.getTime()) / msPerDay);
+    if (diff <= 0) {
+      return { dot: "#dc2626", badge: "background: rgba(220,38,38,0.1); color: #b91c1c;", row: "background: rgba(220,38,38,0.03);" };
+    }
+    if (diff <= 7) {
+      return { dot: "#f59e0b", badge: "background: rgba(245,158,11,0.1); color: #92400e;", row: "background: rgba(245,158,11,0.03);" };
+    }
+    return { dot: "#059669", badge: "background: rgba(5,150,105,0.1); color: #065f46;", row: "" };
+  }
+
+  function formatDueDate(d: Date): string {
+    return d.toLocaleDateString("es-UY", { day: "2-digit", month: "2-digit", year: "numeric" });
+  }
+
+  function catBadge(cat: string): string {
+    if (cat === "DGI")    return "background: rgba(79,70,229,0.08); color: #3730a3;";
+    if (cat === "BPS")    return "background: rgba(16,185,129,0.08); color: #065f46;";
+    return "background: rgba(100,116,139,0.08); color: #374151;";
+  }
+
+  function render() {
+    monthLabel.textContent = `${MONTH_NAMES[viewMonth - 1]} ${viewYear}`;
+    container.innerHTML = "";
+
+    // ── Monthly obligations: filed in viewMonth for the previous period ────
+    const prevMonth = viewMonth === 1 ? 12 : viewMonth - 1;
+    const prevYear  = viewMonth === 1 ? viewYear - 1 : viewYear;
+    const prevLabel = `${MONTH_NAMES[prevMonth - 1]} ${prevYear}`;
+
+    const monthlySection = document.createElement("div");
+    monthlySection.className = "flex flex-col gap-3";
+    monthlySection.innerHTML = `
+      <div class="flex items-center gap-3">
+        <h2 class="text-sm font-semibold" style="color: #0f1117;">Obligaciones del período ${prevLabel}</h2>
+        <span class="text-xs px-2 py-0.5 rounded-full" style="background: rgba(0,0,0,0.05); color: #6b7280;">Declarado en ${MONTH_NAMES[viewMonth - 1]}</span>
+      </div>
+    `;
+
+    const monthlyCard = document.createElement("div");
+    monthlyCard.className = "rounded-2xl overflow-hidden";
+    monthlyCard.style.cssText = "background: white; border: 1px solid rgba(0,0,0,0.07); box-shadow: 0 1px 6px rgba(0,0,0,0.04);";
+
+    for (let i = 0; i < MONTHLY_OBLIGATIONS.length; i++) {
+      const ob = MONTHLY_OBLIGATIONS[i];
+      const dueDate = getDueDate(ob.dueDay, viewMonth, viewYear);
+      const urg = urgencyStyle(dueDate);
+
+      const row = document.createElement("div");
+      row.className = "px-5 py-4 flex items-start gap-4";
+      row.style.cssText = `${urg.row}${i < MONTHLY_OBLIGATIONS.length - 1 ? "border-bottom: 1px solid rgba(0,0,0,0.05);" : ""}`;
+      row.innerHTML = `
+        <div class="w-2 h-2 rounded-full mt-2 flex-shrink-0" style="background: ${urg.dot};"></div>
+        <div class="flex-1 min-w-0 flex flex-col gap-1">
+          <div class="flex items-center gap-2 flex-wrap">
+            <span class="text-sm font-medium" style="color: #0f1117;">${ob.name}</span>
+            <span class="text-xs font-medium px-2 py-0.5 rounded-full" style="${catBadge(ob.category)}">${ob.category}</span>
+          </div>
+          <p class="text-xs leading-relaxed" style="color: #6b7280;">${ob.description}</p>
+          ${ob.formRef ? `<p class="text-xs" style="color: #9ca3af;">📋 ${ob.formRef}</p>` : ""}
+        </div>
+        <div class="flex flex-col items-end gap-1 flex-shrink-0">
+          <span class="text-xs font-medium px-2 py-0.5 rounded-full" style="${urg.badge}">
+            ${formatDueDate(dueDate)}
+          </span>
+          <span class="text-xs" style="color: #9ca3af;">aprox. día ${ob.dueDay}</span>
+        </div>
+      `;
+      monthlyCard.appendChild(row);
+    }
+
+    monthlySection.appendChild(monthlyCard);
+    container.appendChild(monthlySection);
+
+    // ── Annual obligations that fall in this month/year ───────────────────
+    const annualInView = ANNUAL_OBLIGATIONS.filter(a => a.dueMonth === viewMonth);
+
+    if (annualInView.length > 0) {
+      const annualSection = document.createElement("div");
+      annualSection.className = "flex flex-col gap-3";
+      annualSection.innerHTML = `
+        <h2 class="text-sm font-semibold" style="color: #0f1117;">Obligaciones anuales con vencimiento en ${MONTH_NAMES[viewMonth - 1]}</h2>
+      `;
+
+      const annualCard = document.createElement("div");
+      annualCard.className = "rounded-2xl overflow-hidden";
+      annualCard.style.cssText = "background: white; border: 1px solid rgba(0,0,0,0.07); box-shadow: 0 1px 6px rgba(0,0,0,0.04);";
+
+      for (let i = 0; i < annualInView.length; i++) {
+        const ao = annualInView[i];
+        const dueDate = getDueDate(ao.dueDay, ao.dueMonth, viewYear);
+        const urg = urgencyStyle(dueDate);
+
+        const row = document.createElement("div");
+        row.className = "px-5 py-4 flex items-start gap-4";
+        row.style.cssText = `${urg.row}${i < annualInView.length - 1 ? "border-bottom: 1px solid rgba(0,0,0,0.05);" : ""}`;
+        row.innerHTML = `
+          <div class="w-2 h-2 rounded-full mt-2 flex-shrink-0" style="background: ${urg.dot};"></div>
+          <div class="flex-1 min-w-0 flex flex-col gap-1">
+            <div class="flex items-center gap-2 flex-wrap">
+              <span class="text-sm font-medium" style="color: #0f1117;">${ao.name}</span>
+              <span class="text-xs font-medium px-2 py-0.5 rounded-full" style="${catBadge(ao.category)}">${ao.category}</span>
+              <span class="text-xs font-medium px-2 py-0.5 rounded-full" style="background: rgba(245,158,11,0.1); color: #92400e;">Anual</span>
+            </div>
+            <p class="text-xs leading-relaxed" style="color: #6b7280;">${ao.description}</p>
+            ${ao.formRef ? `<p class="text-xs" style="color: #9ca3af;">📋 ${ao.formRef}</p>` : ""}
+          </div>
+          <div class="flex flex-col items-end gap-1 flex-shrink-0">
+            <span class="text-xs font-medium px-2 py-0.5 rounded-full" style="${urg.badge}">
+              ${formatDueDate(dueDate)}
+            </span>
+            <span class="text-xs" style="color: #9ca3af;">ejercicio anterior</span>
+          </div>
+        `;
+        annualCard.appendChild(row);
+      }
+
+      annualSection.appendChild(annualCard);
+      container.appendChild(annualSection);
+    }
+
+    // ── Quick action ───────────────────────────────────────────────────────
+    const cta = document.createElement("div");
+    cta.className = "rounded-2xl p-5 flex items-center justify-between gap-4 flex-wrap";
+    cta.style.cssText = "background: rgba(79,70,229,0.04); border: 1px solid rgba(79,70,229,0.1);";
+    cta.innerHTML = `
+      <div class="flex flex-col gap-1">
+        <p class="text-sm font-medium" style="color: #3730a3;">¿Ya cargaste los documentos de ${prevLabel}?</p>
+        <p class="text-xs" style="color: #6366f1;">Creá el período impositivo y obtené el análisis consolidado de tus obligaciones.</p>
+      </div>
+      <a href="/app/impuestos"
+        class="text-xs font-medium rounded-xl px-4 py-2 whitespace-nowrap transition-all"
+        style="background: #4f46e5; color: white; box-shadow: 0 2px 8px rgba(79,70,229,0.2);"
+        onmouseover="this.style.background='#4338ca'" onmouseout="this.style.background='#4f46e5'">
+        Ir a Análisis Impositivo →
+      </a>
+    `;
+    container.appendChild(cta);
+  }
+
+  render();
+</script>

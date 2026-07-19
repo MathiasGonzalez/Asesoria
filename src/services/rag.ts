@@ -1,6 +1,34 @@
+/**
+ * RagService — Retrieval-Augmented Generation pipeline for Uruguayan legal corpus.
+ *
+ * ## Overview
+ * Implements a **hybrid search** strategy that combines:
+ * - **Semantic search** via Cloudflare Vectorize (model: `@cf/baai/bge-m3`, 1024 dims,
+ *   multilingual, supports Spanish legal text).
+ * - **Lexical search** via SQLite FTS5 (`document_chunks_fts`) for keyword precision.
+ *
+ * Merged results are fetched from D1, formatted with source attribution (document
+ * title, source name, and URL), and returned as a context string for the LLM prompt.
+ *
+ * ## Ingestion pipeline
+ * `ingestDocument` implements **Contextual RAG** (Anthropic's technique):
+ * 1. Splits the document into ≤1 000-char paragraph chunks.
+ * 2. For each chunk, calls `@cf/meta/llama-3-8b-instruct` to generate a 1–2 sentence
+ *    contextual summary situating the chunk within the full document.
+ * 3. Embeds `contextSummary + chunkText` via `@cf/baai/bge-m3`.
+ * 4. Stores chunks + summaries in D1; batch-upserts all vectors to Vectorize in a
+ *    single round-trip.
+ *
+ * ## Content limit
+ * Maximum ingested content per call: 20 000 characters (enforced by the route handler).
+ * This prevents CPU time overruns from large documents processed chunk by chunk.
+ */
 export interface Env {
+  /** D1 database — stores documents, chunks, and the FTS5 virtual table. */
   DB: D1Database;
+  /** Vectorize index — holds 1024-dim bge-m3 embeddings for semantic retrieval. */
   VECTORIZE: VectorizeIndex;
+  /** Workers AI binding — used for embedding (`bge-m3`) and generation (`llama-3-8b`). */
   AI: Ai;
 }
 

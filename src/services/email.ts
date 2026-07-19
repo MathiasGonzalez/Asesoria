@@ -1,3 +1,15 @@
+/**
+ * EmailService — transactional email delivery for OTP codes.
+ *
+ * Supports two backends, tried in order:
+ * 1. **Cloudflare Email Send binding** (`EMAIL_SEND`) — zero-latency edge delivery
+ *    using the Cloudflare Email Workers API (beta).  Preferred when configured.
+ * 2. **Resend API** (`EMAIL_API_KEY`) — HTTP fallback using the Resend REST API.
+ *    Used automatically when the `EMAIL_SEND` binding is absent (e.g., local dev).
+ *
+ * The `EMAIL_FROM` secret must always be set to a verified sender address.
+ */
+
 /** Cloudflare Email Send binding (Workers API, beta). */
 export interface SendEmailBinding {
   send(message: {
@@ -12,8 +24,15 @@ export interface SendEmailBinding {
 export interface EmailEnv {
   /** Cloudflare Email Send binding – preferred when present. */
   EMAIL_SEND?: SendEmailBinding;
-  /** Resend API key – used as fallback when EMAIL_SEND is absent. */
+  /**
+   * Resend API key – used as fallback when `EMAIL_SEND` is absent.
+   * Set via: `wrangler secret put EMAIL_API_KEY`
+   */
   EMAIL_API_KEY?: string;
+  /**
+   * Verified sender address, e.g. `"noreply@yourdomain.com"`.
+   * Set via: `wrangler secret put EMAIL_FROM`
+   */
   EMAIL_FROM: string;
 }
 
