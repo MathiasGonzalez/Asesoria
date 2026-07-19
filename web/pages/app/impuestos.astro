@@ -8,8 +8,8 @@ import AppLayout from "../../layouts/AppLayout.astro";
     <div class="flex flex-col gap-1">
       <h1 class="text-2xl font-bold tracking-tight" style="color: #0f1117;">Análisis Impositivo</h1>
       <p class="text-sm" style="color: #6b7280; line-height: 1.6;">
-        Gestioná períodos mensuales, subí documentos contables y obtenés un consolidado de tus impuestos más
-        comunes (IVA, IRAE, IRPF, BPS y más).
+        Gestioná períodos mensuales, subí documentos contables y obtenés un consolidado de tus impuestos
+        (IVA, IRAE, IRPF, BPS y más) con referencia a normativa DGI/BPS Uruguay.
       </p>
     </div>
     <button
@@ -24,6 +24,16 @@ import AppLayout from "../../layouts/AppLayout.astro";
       </svg>
       Nuevo período
     </button>
+  </div>
+
+  <!-- Company filter (shown only if companies exist) -->
+  <div id="company-filter-bar" class="hidden items-center gap-3 flex-wrap">
+    <span class="text-xs font-medium" style="color: #374151;">Filtrar por empresa:</span>
+    <select id="sel-company-filter"
+      class="rounded-lg border border-slate-200 px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+      style="color: #0f1117;">
+      <option value="">Todas las empresas</option>
+    </select>
   </div>
 
   <!-- Alert -->
@@ -106,6 +116,33 @@ import AppLayout from "../../layouts/AppLayout.astro";
             style="color: #0f1117;" />
         </div>
       </div>
+
+      <!-- Company selector (populated by JS if companies exist) -->
+      <div class="flex flex-col gap-1.5">
+        <label for="sel-company" class="text-xs font-medium" style="color: #374151;">
+          Empresa <span class="font-normal" style="color: #9ca3af;">(opcional)</span>
+        </label>
+        <select id="sel-company" name="company_id"
+          class="rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+          style="color: #0f1117;">
+          <option value="">— Sin empresa —</option>
+        </select>
+        <p class="text-xs" style="color: #9ca3af;">
+          Vinculá una empresa para incluir su contexto en el análisis IA.
+          <a href="/app/empresas" class="underline" style="color: #4f46e5;">Administrar empresas →</a>
+        </p>
+      </div>
+
+      <!-- Notes -->
+      <div class="flex flex-col gap-1.5">
+        <label for="period-notas" class="text-xs font-medium" style="color: #374151;">
+          Notas del período <span class="font-normal" style="color: #9ca3af;">(opcional)</span>
+        </label>
+        <input type="text" id="period-notas" placeholder="Ej: Mes con facturación alta por temporada"
+          class="rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          style="color: #0f1117;" />
+      </div>
+
       <button type="submit" id="modal-submit"
         class="w-full font-medium rounded-xl py-2.5 text-sm transition-all"
         style="background: #4f46e5; color: white; box-shadow: 0 2px 8px rgba(79,70,229,0.2);"
@@ -148,6 +185,15 @@ import AppLayout from "../../layouts/AppLayout.astro";
     status: "draft" | "analyzed";
     doc_count: number;
     created_at: number;
+    company_id: string | null;
+    company_name: string | null;
+  }
+
+  interface Company {
+    id: string;
+    rut: string;
+    razon_social: string;
+    nombre_comercial: string | null;
   }
 
   // ── Elements ───────────────────────────────────────────────────────────────
@@ -158,6 +204,8 @@ import AppLayout from "../../layouts/AppLayout.astro";
 
   const btnNew     = document.getElementById("btn-new-period") as HTMLButtonElement;
   const emptyBtn   = document.getElementById("empty-btn-new") as HTMLButtonElement;
+  const filterBar  = document.getElementById("company-filter-bar") as HTMLDivElement;
+  const filterSel  = document.getElementById("sel-company-filter") as HTMLSelectElement;
 
   // Modal elements
   const overlay    = document.getElementById("modal-overlay")   as HTMLDivElement;
@@ -167,6 +215,8 @@ import AppLayout from "../../layouts/AppLayout.astro";
   const modalSubmit = document.getElementById("modal-submit")   as HTMLButtonElement;
   const selMonth   = document.getElementById("sel-month")       as HTMLSelectElement;
   const selYear    = document.getElementById("sel-year")        as HTMLInputElement;
+  const selCompany = document.getElementById("sel-company")     as HTMLSelectElement;
+  const periodNotas = document.getElementById("period-notas")   as HTMLInputElement;
 
   // Delete modal
   const delOverlay = document.getElementById("del-overlay") as HTMLDivElement;
@@ -176,6 +226,8 @@ import AppLayout from "../../layouts/AppLayout.astro";
 
   let pendingDeleteId    = "";
   let pendingDeleteLabel = "";
+  let allPeriods: TaxPeriod[] = [];
+  let activeFilter   = "";
 
   // ── Helpers ────────────────────────────────────────────────────────────────
   const session = () => localStorage.getItem("adviser_session") ?? "";
@@ -203,6 +255,42 @@ import AppLayout from "../../layouts/AppLayout.astro";
   selYear.value = String(new Date().getFullYear());
   // Pre-select current month
   selMonth.value = String(new Date().getMonth() + 1);
+
+  // ── Load companies for the selector ────────────────────────────────────────
+  async function loadCompanies() {
+    const res = await fetch("/api/companies", { headers: { Authorization: "Bearer " + session() } });
+    if (!res.ok || res.status === 401) return;
+    const data = await res.json() as { companies: Company[] };
+    if (data.companies.length === 0) return;
+
+    // Populate modal selector
+    for (const co of data.companies) {
+      const opt = document.createElement("option");
+      opt.value = co.id;
+      opt.textContent = co.nombre_comercial || co.razon_social;
+      selCompany.appendChild(opt);
+    }
+
+    // If a ?empresa= query param is present, pre-select
+    const preselect = new URLSearchParams(window.location.search).get("empresa");
+    if (preselect) selCompany.value = preselect;
+
+    // Populate filter bar
+    for (const co of data.companies) {
+      const opt = document.createElement("option");
+      opt.value = co.id;
+      opt.textContent = co.nombre_comercial || co.razon_social;
+      filterSel.appendChild(opt);
+    }
+
+    filterBar.classList.remove("hidden");
+    filterBar.classList.add("flex");
+  }
+
+  filterSel?.addEventListener("change", () => {
+    activeFilter = filterSel.value;
+    renderGrid();
+  });
 
   // ── Modal open/close ───────────────────────────────────────────────────────
   function openModal() {
@@ -260,12 +348,8 @@ import AppLayout from "../../layouts/AppLayout.astro";
       return;
     }
 
-    document.getElementById(`period-card-${id}`)?.remove();
-    const remaining = gridEl.querySelectorAll("[id^='period-card-']").length;
-    if (remaining === 0) {
-      gridEl.classList.add("hidden");
-      emptyEl.classList.remove("hidden");
-    }
+    allPeriods = allPeriods.filter(p => p.id !== id);
+    renderGrid();
   });
 
   // ── Create period ──────────────────────────────────────────────────────────
@@ -275,7 +359,12 @@ import AppLayout from "../../layouts/AppLayout.astro";
     modalSubmit.disabled = true;
     modalSubmit.textContent = "Creando…";
 
-    const body = JSON.stringify({ month: Number(selMonth.value), year: Number(selYear.value) });
+    const body = JSON.stringify({
+      month:      Number(selMonth.value),
+      year:       Number(selYear.value),
+      company_id: selCompany.value || undefined,
+      notas:      periodNotas.value.trim() || undefined,
+    });
     const res = await fetch("/api/tax/periods", { method: "POST", headers: authHeaders(), body });
 
     if (handleUnauth(res.status)) return;
@@ -283,9 +372,8 @@ import AppLayout from "../../layouts/AppLayout.astro";
     const data = await res.json() as { ok?: boolean; period?: TaxPeriod; error?: string };
     if (res.ok && data.period) {
       closeModal();
-      prependCard(data.period);
-      emptyEl.classList.add("hidden");
-      gridEl.classList.remove("hidden");
+      allPeriods.unshift(data.period);
+      renderGrid();
     } else {
       modalAlert.textContent = data.error ?? "Error al crear el período.";
       modalAlert.classList.remove("hidden");
@@ -319,6 +407,10 @@ import AppLayout from "../../layouts/AppLayout.astro";
         <div class="flex flex-col gap-1">
           <span class="text-base font-semibold" style="color: #0f1117;">${p.label}</span>
           <span class="text-xs" style="color: #9ca3af;">${docLabel}</span>
+          ${p.company_name ? `<span class="text-xs flex items-center gap-1 mt-0.5" style="color: #6b7280;">
+            <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 21h19.5m-18-18v18m10.5-18v18m6-13.5V21"/></svg>
+            ${p.company_name}
+          </span>` : ""}
         </div>
         <span class="text-xs font-medium px-2.5 py-1 rounded-full whitespace-nowrap flex-shrink-0" style="${badgeStyle}">${badgeLabel}</span>
       </div>
@@ -351,8 +443,21 @@ import AppLayout from "../../layouts/AppLayout.astro";
     return card;
   }
 
-  function prependCard(p: TaxPeriod) {
-    gridEl.prepend(buildCard(p));
+  function renderGrid() {
+    const filtered = activeFilter
+      ? allPeriods.filter(p => p.company_id === activeFilter)
+      : allPeriods;
+
+    gridEl.innerHTML = "";
+
+    if (filtered.length === 0) {
+      gridEl.classList.add("hidden");
+      emptyEl.classList.remove("hidden");
+    } else {
+      emptyEl.classList.add("hidden");
+      for (const p of filtered) gridEl.appendChild(buildCard(p));
+      gridEl.classList.remove("hidden");
+    }
   }
 
   // ── Load periods ───────────────────────────────────────────────────────────
@@ -365,18 +470,15 @@ import AppLayout from "../../layouts/AppLayout.astro";
     if (!res.ok) { showAlert("No se pudieron cargar los períodos."); return; }
 
     const data = await res.json() as { periods: TaxPeriod[] };
+    allPeriods = data.periods;
 
-    if (data.periods.length === 0) {
-      emptyEl.classList.remove("hidden");
-      return;
-    }
+    // Pre-select filter if empresa param present
+    const preselect = new URLSearchParams(window.location.search).get("empresa");
+    if (preselect) activeFilter = preselect;
 
-    gridEl.innerHTML = "";
-    for (const p of data.periods) {
-      gridEl.appendChild(buildCard(p));
-    }
-    gridEl.classList.remove("hidden");
+    renderGrid();
   }
 
+  await loadCompanies();
   loadPeriods();
 </script>

@@ -20,6 +20,14 @@ import AppLayout from "../../../layouts/AppLayout.astro";
         <span id="period-badge" class="hidden text-xs font-medium px-2.5 py-1 rounded-full"></span>
       </div>
       <p id="period-subtitle" class="text-sm" style="color: #6b7280;"></p>
+      <!-- Company info banner (shown if period is linked to a company) -->
+      <div id="company-banner" class="hidden mt-1 flex items-center gap-2 text-xs rounded-lg px-3 py-2"
+        style="background: rgba(79,70,229,0.05); border: 1px solid rgba(79,70,229,0.12); color: #3730a3;">
+        <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 21h19.5m-18-18v18m10.5-18v18m6-13.5V21M6.75 6.75h.75m-.75 3h.75m-.75 3h.75m3-6h.75m-.75 3h.75m-.75 3h.75M6.75 21v-3.375c0-.621.504-1.125 1.125-1.125h3.75c.621 0 1.125.504 1.125 1.125V21M3 3h12m-.75 4.5H21m-3.75 3.75h.008v.008h-.008v-.008Zm0 3h.008v.008h-.008v-.008Zm0 3h.008v.008h-.008v-.008Z" />
+        </svg>
+        <span id="company-banner-text"></span>
+      </div>
     </div>
     <!-- Consolidate button -->
     <button id="btn-consolidate"
@@ -111,14 +119,35 @@ import AppLayout from "../../../layouts/AppLayout.astro";
             class="rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
             style="color: #0f1117;">
             <option value="">— Sin especificar —</option>
-            <option value="factura_venta">Facturas de venta</option>
-            <option value="factura_compra">Facturas de compra</option>
-            <option value="planilla_sueldos">Planilla de sueldos</option>
-            <option value="resumen_bancario">Resumen bancario</option>
-            <option value="declaracion_dgi">Declaración DGI</option>
-            <option value="boleta_bps">Boleta BPS</option>
-            <option value="libro_iva">Libro de IVA</option>
-            <option value="estado_resultado">Estado de resultado</option>
+            <optgroup label="Facturación">
+              <option value="factura_venta">Facturas de venta</option>
+              <option value="factura_compra">Facturas de compra</option>
+              <option value="nota_credito">Notas de crédito / débito</option>
+            </optgroup>
+            <optgroup label="IVA">
+              <option value="libro_iva_ventas">Libro de IVA ventas</option>
+              <option value="libro_iva_compras">Libro de IVA compras</option>
+              <option value="libro_iva">Libro de IVA (ventas y compras)</option>
+            </optgroup>
+            <optgroup label="Sueldos y BPS">
+              <option value="planilla_sueldos">Planilla de sueldos</option>
+              <option value="recibo_sueldo">Recibos de sueldo</option>
+              <option value="nomina_bps">Nómina BPS (SUNA)</option>
+              <option value="boleta_bps">Boleta BPS</option>
+            </optgroup>
+            <optgroup label="DGI / Declaraciones">
+              <option value="declaracion_dgi">Declaración DGI</option>
+              <option value="formulario_1101">Formulario 1101 (IRAE anual)</option>
+              <option value="formulario_1102">Formulario 1102 (IRPF)</option>
+              <option value="formulario_2181">Formulario 2181 (retenciones IRPF)</option>
+              <option value="cuota_dgi">Cuota DGI / CEDE</option>
+            </optgroup>
+            <optgroup label="Contabilidad">
+              <option value="resumen_bancario">Resumen bancario</option>
+              <option value="estado_resultado">Estado de resultados</option>
+              <option value="balance_general">Balance general</option>
+              <option value="mayor_contable">Libro mayor contable</option>
+            </optgroup>
             <option value="otro">Otro</option>
           </select>
         </div>
@@ -221,6 +250,9 @@ import AppLayout from "../../../layouts/AppLayout.astro";
       <!-- Alerts -->
       <div id="alerts-container" class="hidden flex flex-col gap-2"></div>
 
+      <!-- Recommendations -->
+      <div id="recs-container" class="hidden flex flex-col gap-2"></div>
+
       <!-- Tax table -->
       <div class="rounded-2xl overflow-hidden" style="background: white; border: 1px solid rgba(0,0,0,0.07); box-shadow: 0 1px 6px rgba(0,0,0,0.04);">
         <div class="px-5 py-4" style="border-bottom: 1px solid rgba(0,0,0,0.06);">
@@ -289,6 +321,7 @@ import AppLayout from "../../../layouts/AppLayout.astro";
     resumen?: string;
     impuestos?: TaxItem[];
     alertas?: string[];
+    recomendaciones?: string[];
     total_a_pagar?: number | null;
   }
 
@@ -337,6 +370,7 @@ import AppLayout from "../../../layouts/AppLayout.astro";
   const totalAmount      = document.getElementById("total-amount")      as HTMLSpanElement;
   const analysisDate     = document.getElementById("analysis-date")     as HTMLParagraphElement;
   const alertsContainer  = document.getElementById("alerts-container")  as HTMLDivElement;
+  const recsContainer    = document.getElementById("recs-container")     as HTMLDivElement;
   const taxTableBody     = document.getElementById("tax-table-body")    as HTMLTableSectionElement;
   const rawResponseEl    = document.getElementById("raw-response")      as HTMLPreElement;
   const analysisEmptyBtn = document.getElementById("analysis-empty-btn") as HTMLButtonElement;
@@ -404,12 +438,23 @@ import AppLayout from "../../../layouts/AppLayout.astro";
   const DOC_TYPE_LABELS: Record<string, string> = {
     factura_venta:    "Facturas de venta",
     factura_compra:   "Facturas de compra",
+    nota_credito:     "Notas de crédito / débito",
+    libro_iva_ventas: "Libro IVA ventas",
+    libro_iva_compras:"Libro IVA compras",
     planilla_sueldos: "Planilla de sueldos",
+    recibo_sueldo:    "Recibos de sueldo",
+    nomina_bps:       "Nómina BPS (SUNA)",
     resumen_bancario: "Resumen bancario",
     declaracion_dgi:  "Declaración DGI",
+    formulario_1101:  "Formulario 1101 (IRAE)",
+    formulario_1102:  "Formulario 1102 (IRPF)",
+    formulario_2181:  "Formulario 2181 (retenciones)",
+    cuota_dgi:        "Cuota DGI / CEDE",
     boleta_bps:       "Boleta BPS",
     libro_iva:        "Libro de IVA",
     estado_resultado: "Estado de resultado",
+    balance_general:  "Balance general",
+    mayor_contable:   "Libro mayor contable",
     otro:             "Otro",
   };
 
@@ -631,7 +676,13 @@ import AppLayout from "../../../layouts/AppLayout.astro";
     if (!res.ok) { showAlert("No se pudo cargar la lista de documentos."); return; }
 
     const data = await res.json() as {
-      period: { id: string; label: string; status: string };
+      period: {
+        id: string; label: string; status: string;
+        company_id: string | null; notas: string | null;
+        company_rut: string | null; company_name: string | null;
+        tipo_entidad: string | null; regimen_irae: string | null;
+        actividad: string | null; bps_nro_patronal: string | null;
+      };
       documents: TaxDoc[];
     };
 
@@ -642,6 +693,24 @@ import AppLayout from "../../../layouts/AppLayout.astro";
     periodSubtitle.textContent = "Análisis de situación impositiva mensual";
     isAnalyzed = data.period.status === "analyzed";
     setPeriodBadge(data.period.status);
+
+    // Show company banner if linked
+    const banner     = document.getElementById("company-banner")      as HTMLDivElement | null;
+    const bannerText = document.getElementById("company-banner-text") as HTMLSpanElement | null;
+    if (banner && bannerText && data.period.company_name) {
+      const REGIMEN: Record<string, string> = {
+        real: "IRAE Real", forfait: "IRAE Forfait",
+        pequena_empresa: "Pequeña Empresa", monotributo: "Monotributo",
+        exonerado: "Exonerado", irnr: "IRNR",
+      };
+      const parts = [data.period.company_name];
+      if (data.period.company_rut) parts.push(`RUT: ${data.period.company_rut}`);
+      if (data.period.regimen_irae) parts.push(REGIMEN[data.period.regimen_irae] ?? data.period.regimen_irae);
+      if (data.period.actividad) parts.push(data.period.actividad);
+      bannerText.textContent = parts.join(" · ");
+      banner.classList.remove("hidden");
+      banner.classList.add("flex");
+    }
 
     currentDocs = data.documents;
 
@@ -789,6 +858,30 @@ import AppLayout from "../../../layouts/AppLayout.astro";
       }
     } else {
       alertsContainer.classList.add("hidden");
+    }
+
+    // Recommendations
+    recsContainer.innerHTML = "";
+    if (data?.recomendaciones && data.recomendaciones.length > 0) {
+      recsContainer.classList.remove("hidden");
+      const header = document.createElement("div");
+      header.className = "flex items-center gap-2";
+      header.innerHTML = `
+        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="color: #059669;">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+        </svg>
+        <span class="text-sm font-semibold" style="color: #0f1117;">Recomendaciones del contador</span>
+      `;
+      recsContainer.appendChild(header);
+      for (const r of data.recomendaciones) {
+        const el = document.createElement("div");
+        el.className = "rounded-xl px-4 py-3 text-sm flex items-start gap-2";
+        el.style.cssText = "background: rgba(5,150,105,0.06); border: 1px solid rgba(5,150,105,0.18); color: #065f46;";
+        el.innerHTML = `<svg class="w-4 h-4 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5"/></svg><span>${r}</span>`;
+        recsContainer.appendChild(el);
+      }
+    } else {
+      recsContainer.classList.add("hidden");
     }
 
     // Tax table

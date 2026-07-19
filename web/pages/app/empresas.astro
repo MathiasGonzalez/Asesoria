@@ -1,0 +1,487 @@
+---
+import AppLayout from "../../layouts/AppLayout.astro";
+---
+
+<AppLayout title="Empresas">
+  <!-- Header -->
+  <div class="flex items-start justify-between gap-4 flex-wrap">
+    <div class="flex flex-col gap-1">
+      <h1 class="text-2xl font-bold tracking-tight" style="color: #0f1117;">Empresas</h1>
+      <p class="text-sm" style="color: #6b7280; line-height: 1.6;">
+        Gestioná los perfiles de empresas o clientes para vincularlos a los períodos impositivos y obtener análisis más precisos.
+      </p>
+    </div>
+    <button
+      id="btn-new-company"
+      class="flex items-center gap-2 text-sm font-medium rounded-xl px-4 py-2.5 transition-all whitespace-nowrap"
+      style="background: #4f46e5; color: white; box-shadow: 0 2px 8px rgba(79,70,229,0.25);"
+      onmouseover="this.style.background='#4338ca'; this.style.transform='translateY(-1px)';"
+      onmouseout="this.style.background='#4f46e5'; this.style.transform='';"
+    >
+      <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+      </svg>
+      Nueva empresa
+    </button>
+  </div>
+
+  <!-- Alert -->
+  <div id="alert" class="hidden text-sm rounded-xl px-4 py-3"></div>
+
+  <!-- Loading skeleton -->
+  <div id="loading" class="grid sm:grid-cols-2 gap-4">
+    {Array.from({ length: 2 }).map(() => (
+      <div class="rounded-2xl p-5 animate-pulse" style="background: white; border: 1px solid rgba(0,0,0,0.07);">
+        <div class="flex flex-col gap-3">
+          <div class="h-4 rounded-lg w-3/4" style="background: #f3f4f6;"></div>
+          <div class="h-3 rounded-lg w-1/3" style="background: #f3f4f6;"></div>
+          <div class="h-3 rounded-lg w-1/2" style="background: #f3f4f6;"></div>
+        </div>
+      </div>
+    ))}
+  </div>
+
+  <!-- Empty state -->
+  <div id="empty-state" class="hidden text-center py-16 flex flex-col items-center gap-3">
+    <div class="w-16 h-16 rounded-2xl flex items-center justify-center" style="background: rgba(79,70,229,0.07);">
+      <svg class="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="color: #4f46e5;">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 21h16.5M4.5 3h15M5.25 3v18m13.5-18v18M9 6.75h1.5m-1.5 3h1.5m-1.5 3h1.5m3-6H15m-1.5 3H15m-1.5 3H15M9 21v-3.375c0-.621.504-1.125 1.125-1.125h3.75c.621 0 1.125.504 1.125 1.125V21" />
+      </svg>
+    </div>
+    <p class="text-base font-semibold" style="color: #0f1117;">Sin empresas registradas</p>
+    <p class="text-sm max-w-xs" style="color: #6b7280;">Agregá una empresa o cliente para vincularla a los períodos impositivos y obtener análisis tributarios personalizados.</p>
+    <button id="empty-btn-new" class="mt-2 text-sm font-medium transition-colors" style="color: #4f46e5;"
+      onmouseover="this.style.color='#4338ca'" onmouseout="this.style.color='#4f46e5'">
+      Agregar primera empresa →
+    </button>
+  </div>
+
+  <!-- Companies grid -->
+  <div id="companies-grid" class="hidden grid sm:grid-cols-2 gap-4"></div>
+</AppLayout>
+
+<!-- ── Company Modal (create / edit) ─────────────────────────────────── -->
+<div id="modal-overlay" class="fixed inset-0 z-50 hidden items-center justify-center px-4"
+  style="background: rgba(0,0,0,0.45); backdrop-filter: blur(6px);">
+  <div class="w-full max-w-lg rounded-2xl p-6 flex flex-col gap-5"
+    style="background: white; box-shadow: 0 24px 64px rgba(0,0,0,0.18); max-height: 90vh; overflow-y: auto;">
+    <div class="flex items-center justify-between">
+      <h2 id="modal-title" class="text-base font-semibold" style="color: #0f1117;">Nueva empresa</h2>
+      <button id="modal-close" class="rounded-lg p-1 transition-colors" aria-label="Cerrar"
+        style="color: #9ca3af;" onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='transparent'">
+        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+        </svg>
+      </button>
+    </div>
+    <div id="modal-alert" class="hidden text-xs rounded-lg px-3 py-2"
+      style="background: rgba(239,68,68,0.07); border: 1px solid rgba(239,68,68,0.25); color: #b91c1c;"></div>
+    <form id="company-form" class="flex flex-col gap-4">
+      <input type="hidden" id="edit-id" value="" />
+
+      <!-- RUT -->
+      <div class="flex flex-col gap-1.5">
+        <label for="f-rut" class="text-xs font-medium" style="color: #374151;">RUT <span style="color: #dc2626;">*</span></label>
+        <input id="f-rut" type="text" placeholder="Ej: 210000010018 (12 dígitos, sin puntos)"
+          class="rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          style="color: #0f1117;" required />
+        <p class="text-xs" style="color: #9ca3af;">Ingresá los 12 dígitos del RUT sin puntos ni guiones.</p>
+      </div>
+
+      <!-- Razón social -->
+      <div class="flex flex-col gap-1.5">
+        <label for="f-razon" class="text-xs font-medium" style="color: #374151;">Razón social <span style="color: #dc2626;">*</span></label>
+        <input id="f-razon" type="text" placeholder="Ej: EMPRESA S.A."
+          class="rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          style="color: #0f1117;" required />
+      </div>
+
+      <!-- Nombre comercial -->
+      <div class="flex flex-col gap-1.5">
+        <label for="f-nombre" class="text-xs font-medium" style="color: #374151;">Nombre comercial <span class="font-normal" style="color: #9ca3af;">(opcional)</span></label>
+        <input id="f-nombre" type="text" placeholder="Ej: Mi Empresa"
+          class="rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          style="color: #0f1117;" />
+      </div>
+
+      <!-- Tipo + Régimen -->
+      <div class="grid grid-cols-2 gap-3">
+        <div class="flex flex-col gap-1.5">
+          <label for="f-tipo" class="text-xs font-medium" style="color: #374151;">Tipo de entidad</label>
+          <select id="f-tipo"
+            class="rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+            style="color: #0f1117;">
+            <option value="srl">SRL</option>
+            <option value="sa">SA</option>
+            <option value="sas">SAS</option>
+            <option value="unipersonal">Empresa Unipersonal</option>
+            <option value="cooperativa">Cooperativa</option>
+            <option value="ong">ONG / Asoc. Civil</option>
+            <option value="otro">Otro</option>
+          </select>
+        </div>
+        <div class="flex flex-col gap-1.5">
+          <label for="f-regimen" class="text-xs font-medium" style="color: #374151;">Régimen tributario</label>
+          <select id="f-regimen"
+            class="rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+            style="color: #0f1117;">
+            <option value="real">IRAE — Método Real</option>
+            <option value="forfait">IRAE — Forfait</option>
+            <option value="pequena_empresa">Pequeña Empresa</option>
+            <option value="monotributo">Monotributo</option>
+            <option value="exonerado">Exonerado de IRAE</option>
+            <option value="irnr">IRNR (No Residente)</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Actividad -->
+      <div class="flex flex-col gap-1.5">
+        <label for="f-actividad" class="text-xs font-medium" style="color: #374151;">Actividad económica <span class="font-normal" style="color: #9ca3af;">(opcional)</span></label>
+        <input id="f-actividad" type="text" placeholder="Ej: Comercio mayorista de alimentos"
+          class="rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          style="color: #0f1117;" />
+      </div>
+
+      <!-- BPS N° Patronal -->
+      <div class="flex flex-col gap-1.5">
+        <label for="f-bps" class="text-xs font-medium" style="color: #374151;">N° Patronal BPS <span class="font-normal" style="color: #9ca3af;">(opcional)</span></label>
+        <input id="f-bps" type="text" placeholder="Ej: 1234567"
+          class="rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          style="color: #0f1117;" />
+      </div>
+
+      <!-- Domicilio fiscal -->
+      <div class="flex flex-col gap-1.5">
+        <label for="f-domicilio" class="text-xs font-medium" style="color: #374151;">Domicilio fiscal <span class="font-normal" style="color: #9ca3af;">(opcional)</span></label>
+        <input id="f-domicilio" type="text" placeholder="Ej: Av. 18 de Julio 1234, Montevideo"
+          class="rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          style="color: #0f1117;" />
+      </div>
+
+      <button type="submit" id="modal-submit"
+        class="w-full font-medium rounded-xl py-2.5 text-sm transition-all"
+        style="background: #4f46e5; color: white; box-shadow: 0 2px 8px rgba(79,70,229,0.2);"
+        onmouseover="this.style.background='#4338ca'" onmouseout="this.style.background='#4f46e5'">
+        Guardar empresa
+      </button>
+    </form>
+  </div>
+</div>
+
+<!-- ── Delete Confirm Modal ───────────────────────────────────────────── -->
+<div id="del-overlay" class="fixed inset-0 z-50 hidden items-center justify-center px-4"
+  style="background: rgba(0,0,0,0.45); backdrop-filter: blur(6px);">
+  <div class="w-full max-w-sm rounded-2xl p-6 flex flex-col gap-4"
+    style="background: white; box-shadow: 0 24px 64px rgba(0,0,0,0.18);">
+    <h2 class="text-base font-semibold" style="color: #0f1117;">¿Eliminar empresa?</h2>
+    <p id="del-body" class="text-sm" style="color: #6b7280;"></p>
+    <div class="flex gap-3 justify-end">
+      <button id="del-cancel" class="text-sm font-medium px-4 py-2 rounded-xl transition-colors"
+        style="border: 1px solid rgba(0,0,0,0.1); color: #374151;"
+        onmouseover="this.style.background='rgba(0,0,0,0.04)'" onmouseout="this.style.background='transparent'">
+        Cancelar
+      </button>
+      <button id="del-ok" class="text-sm font-medium px-4 py-2 rounded-xl text-white"
+        style="background: #dc2626;"
+        onmouseover="this.style.background='#b91c1c'" onmouseout="this.style.background='#dc2626'">
+        Eliminar
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+  interface Company {
+    id: string;
+    rut: string;
+    razon_social: string;
+    nombre_comercial: string | null;
+    tipo_entidad: string;
+    regimen_irae: string;
+    actividad: string | null;
+    bps_nro_patronal: string | null;
+    domicilio_fiscal: string | null;
+    created_at: number;
+  }
+
+  const TIPO_LABELS: Record<string, string> = {
+    srl: "SRL", sa: "SA", sas: "SAS",
+    unipersonal: "Empresa Unipersonal",
+    cooperativa: "Cooperativa", ong: "ONG",
+    otro: "Otro",
+  };
+  const REGIMEN_LABELS: Record<string, string> = {
+    real: "IRAE — Real",
+    forfait: "IRAE — Forfait",
+    pequena_empresa: "Pequeña Empresa",
+    monotributo: "Monotributo",
+    exonerado: "Exonerado",
+    irnr: "IRNR",
+  };
+  const REGIMEN_COLORS: Record<string, string> = {
+    real:          "background: rgba(79,70,229,0.08); color: #3730a3;",
+    forfait:       "background: rgba(79,70,229,0.08); color: #3730a3;",
+    pequena_empresa: "background: rgba(16,185,129,0.08); color: #065f46;",
+    monotributo:   "background: rgba(245,158,11,0.1); color: #92400e;",
+    exonerado:     "background: rgba(100,116,139,0.1); color: #475569;",
+    irnr:          "background: rgba(100,116,139,0.1); color: #475569;",
+  };
+
+  // Elements
+  const loadingEl   = document.getElementById("loading")        as HTMLDivElement;
+  const emptyEl     = document.getElementById("empty-state")    as HTMLDivElement;
+  const gridEl      = document.getElementById("companies-grid") as HTMLDivElement;
+  const alertEl     = document.getElementById("alert")          as HTMLDivElement;
+  const btnNew      = document.getElementById("btn-new-company") as HTMLButtonElement;
+  const emptyBtn    = document.getElementById("empty-btn-new")   as HTMLButtonElement;
+  const overlay     = document.getElementById("modal-overlay")  as HTMLDivElement;
+  const modalClose  = document.getElementById("modal-close")    as HTMLButtonElement;
+  const modalTitle  = document.getElementById("modal-title")    as HTMLHeadingElement;
+  const modalAlert  = document.getElementById("modal-alert")    as HTMLDivElement;
+  const modalSubmit = document.getElementById("modal-submit")   as HTMLButtonElement;
+  const form        = document.getElementById("company-form")   as HTMLFormElement;
+  const editId      = document.getElementById("edit-id")        as HTMLInputElement;
+  const fRut        = document.getElementById("f-rut")          as HTMLInputElement;
+  const fRazon      = document.getElementById("f-razon")        as HTMLInputElement;
+  const fNombre     = document.getElementById("f-nombre")       as HTMLInputElement;
+  const fTipo       = document.getElementById("f-tipo")         as HTMLSelectElement;
+  const fRegimen    = document.getElementById("f-regimen")      as HTMLSelectElement;
+  const fActividad  = document.getElementById("f-actividad")    as HTMLInputElement;
+  const fBps        = document.getElementById("f-bps")          as HTMLInputElement;
+  const fDomicilio  = document.getElementById("f-domicilio")    as HTMLInputElement;
+  const delOverlay  = document.getElementById("del-overlay")    as HTMLDivElement;
+  const delBody     = document.getElementById("del-body")       as HTMLParagraphElement;
+  const delCancel   = document.getElementById("del-cancel")     as HTMLButtonElement;
+  const delOk       = document.getElementById("del-ok")         as HTMLButtonElement;
+
+  let pendingDeleteId   = "";
+  let pendingDeleteName = "";
+
+  const session = () => localStorage.getItem("adviser_session") ?? "";
+  const jsonHdr = (): HeadersInit => ({ Authorization: "Bearer " + session(), "Content-Type": "application/json" });
+
+  function handleUnauth(status: number) {
+    if (status === 401) {
+      localStorage.removeItem("adviser_session");
+      window.location.replace("/login?login=expired");
+      return true;
+    }
+    return false;
+  }
+
+  function showAlert(msg: string, type: "error" | "success" = "error") {
+    alertEl.textContent = msg;
+    alertEl.style.cssText = type === "success"
+      ? "background: rgba(5,150,105,0.07); border: 1px solid rgba(5,150,105,0.25); color: #065f46;"
+      : "background: rgba(239,68,68,0.07); border: 1px solid rgba(239,68,68,0.25); color: #b91c1c;";
+    alertEl.classList.remove("hidden");
+    setTimeout(() => alertEl.classList.add("hidden"), 6000);
+  }
+
+  // ── Modal ──────────────────────────────────────────────────────────────────
+  function openModal(company?: Company) {
+    modalAlert.classList.add("hidden");
+    if (company) {
+      modalTitle.textContent = "Editar empresa";
+      modalSubmit.textContent = "Guardar cambios";
+      editId.value      = company.id;
+      fRut.value        = company.rut;
+      fRut.disabled     = true;
+      fRazon.value      = company.razon_social;
+      fNombre.value     = company.nombre_comercial ?? "";
+      fTipo.value       = company.tipo_entidad;
+      fRegimen.value    = company.regimen_irae;
+      fActividad.value  = company.actividad ?? "";
+      fBps.value        = company.bps_nro_patronal ?? "";
+      fDomicilio.value  = company.domicilio_fiscal ?? "";
+    } else {
+      modalTitle.textContent = "Nueva empresa";
+      modalSubmit.textContent = "Guardar empresa";
+      editId.value = "";
+      form.reset();
+      fRut.disabled = false;
+    }
+    overlay.classList.remove("hidden");
+    overlay.classList.add("flex");
+    fRazon.focus();
+  }
+
+  function closeModal() {
+    overlay.classList.add("hidden");
+    overlay.classList.remove("flex");
+    fRut.disabled = false;
+  }
+
+  btnNew?.addEventListener("click",    () => openModal());
+  emptyBtn?.addEventListener("click",  () => openModal());
+  modalClose?.addEventListener("click", closeModal);
+  overlay?.addEventListener("click", (e) => { if (e.target === overlay) closeModal(); });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") { closeModal(); closeDelModal(); } });
+
+  // ── Form submit ────────────────────────────────────────────────────────────
+  form?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    modalAlert.classList.add("hidden");
+    modalSubmit.disabled = true;
+    modalSubmit.textContent = "Guardando…";
+
+    const isEdit = !!editId.value;
+    const body = JSON.stringify({
+      rut:              fRut.value.trim(),
+      razon_social:     fRazon.value.trim(),
+      nombre_comercial: fNombre.value.trim() || undefined,
+      tipo_entidad:     fTipo.value,
+      regimen_irae:     fRegimen.value,
+      actividad:        fActividad.value.trim() || undefined,
+      bps_nro_patronal: fBps.value.trim() || undefined,
+      domicilio_fiscal: fDomicilio.value.trim() || undefined,
+    });
+
+    const url    = isEdit ? `/api/companies/${encodeURIComponent(editId.value)}` : "/api/companies";
+    const method = isEdit ? "PUT" : "POST";
+
+    const res = await fetch(url, { method, headers: jsonHdr(), body });
+    if (handleUnauth(res.status)) return;
+
+    const data = await res.json() as { ok?: boolean; company?: Company; error?: string };
+
+    if (res.ok && data.ok) {
+      closeModal();
+      if (isEdit) {
+        await loadCompanies();
+        showAlert("Empresa actualizada correctamente.", "success");
+      } else {
+        if (data.company) {
+          emptyEl.classList.add("hidden");
+          gridEl.classList.remove("hidden");
+          gridEl.prepend(buildCard(data.company));
+        }
+        showAlert("Empresa creada correctamente.", "success");
+      }
+    } else {
+      modalAlert.textContent = data.error ?? "Error al guardar la empresa.";
+      modalAlert.classList.remove("hidden");
+    }
+
+    modalSubmit.disabled = false;
+    modalSubmit.textContent = isEdit ? "Guardar cambios" : "Guardar empresa";
+  });
+
+  // ── Delete modal ────────────────────────────────────────────────────────────
+  function openDelModal(id: string, name: string) {
+    pendingDeleteId   = id;
+    pendingDeleteName = name;
+    delBody.textContent = `Esto eliminará la empresa "${name}" y desvincularla de todos sus períodos impositivos. No se puede deshacer.`;
+    delOverlay.classList.remove("hidden");
+    delOverlay.classList.add("flex");
+  }
+
+  function closeDelModal() {
+    delOverlay.classList.add("hidden");
+    delOverlay.classList.remove("flex");
+    pendingDeleteId = "";
+  }
+
+  delCancel?.addEventListener("click", closeDelModal);
+  delOverlay?.addEventListener("click", (e) => { if (e.target === delOverlay) closeDelModal(); });
+
+  delOk?.addEventListener("click", async () => {
+    if (!pendingDeleteId) return;
+    const id = pendingDeleteId;
+    closeDelModal();
+
+    const res = await fetch(`/api/companies/${encodeURIComponent(id)}`, {
+      method: "DELETE", headers: { Authorization: "Bearer " + session() },
+    });
+    if (handleUnauth(res.status)) return;
+    if (!res.ok) { showAlert("No se pudo eliminar la empresa."); return; }
+
+    document.getElementById(`co-card-${id}`)?.remove();
+    const remaining = gridEl.querySelectorAll("[id^='co-card-']").length;
+    if (remaining === 0) {
+      gridEl.classList.add("hidden");
+      emptyEl.classList.remove("hidden");
+    }
+  });
+
+  // ── Build card ─────────────────────────────────────────────────────────────
+  function buildCard(co: Company): HTMLElement {
+    const card = document.createElement("div");
+    card.id = `co-card-${co.id}`;
+    card.className = "rounded-2xl p-5 flex flex-col gap-4";
+    card.style.cssText = "background: white; border: 1px solid rgba(0,0,0,0.07); box-shadow: 0 1px 6px rgba(0,0,0,0.04);";
+
+    const regBadgeStyle = REGIMEN_COLORS[co.regimen_irae] ?? REGIMEN_COLORS.real;
+    const tipoLabel  = TIPO_LABELS[co.tipo_entidad]  ?? co.tipo_entidad;
+    const regimenLabel = REGIMEN_LABELS[co.regimen_irae] ?? co.regimen_irae;
+
+    const rutFormatted = co.rut.length === 12
+      ? `${co.rut.slice(0,3)}.${co.rut.slice(3,9)}.${co.rut.slice(9,11)}-${co.rut.slice(11)}`
+      : co.rut;
+
+    card.innerHTML = `
+      <div class="flex items-start justify-between gap-2">
+        <div class="flex flex-col gap-1 min-w-0">
+          <span class="text-base font-semibold truncate" style="color: #0f1117;">${co.nombre_comercial || co.razon_social}</span>
+          ${co.nombre_comercial ? `<span class="text-xs truncate" style="color: #6b7280;">${co.razon_social}</span>` : ""}
+          <span class="text-xs font-mono" style="color: #9ca3af;">RUT: ${rutFormatted}</span>
+        </div>
+        <span class="text-xs font-medium px-2 py-0.5 rounded-full whitespace-nowrap flex-shrink-0" style="${regBadgeStyle}">${regimenLabel}</span>
+      </div>
+      <div class="flex flex-wrap gap-2 text-xs" style="color: #6b7280;">
+        <span class="flex items-center gap-1">
+          <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 21h19.5m-18-18v18m10.5-18v18m6-13.5V21M6.75 6.75h.75m-.75 3h.75m-.75 3h.75m3-6h.75m-.75 3h.75m-.75 3h.75M6.75 21v-3.375c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21M3 3h12m-.75 4.5H21m-3.75 3.75h.008v.008h-.008v-.008Zm0 3h.008v.008h-.008v-.008Zm0 3h.008v.008h-.008v-.008Z"/></svg>
+          ${tipoLabel}
+        </span>
+        ${co.actividad ? `<span>· ${co.actividad}</span>` : ""}
+        ${co.bps_nro_patronal ? `<span>· BPS ${co.bps_nro_patronal}</span>` : ""}
+      </div>
+      <div class="flex gap-2 pt-1">
+        <button class="edit-btn flex-1 text-center text-xs font-medium py-2 rounded-lg transition-colors"
+          style="background: rgba(79,70,229,0.07); color: #4f46e5;"
+          onmouseover="this.style.background='rgba(79,70,229,0.14)'" onmouseout="this.style.background='rgba(79,70,229,0.07)'">
+          Editar
+        </button>
+        <a href="/app/impuestos?empresa=${co.id}"
+          class="text-xs font-medium px-3 py-2 rounded-lg transition-colors"
+          style="background: rgba(5,150,105,0.07); color: #047857;"
+          onmouseover="this.style.background='rgba(5,150,105,0.14)'" onmouseout="this.style.background='rgba(5,150,105,0.07)'">
+          Ver períodos
+        </a>
+        <button class="del-btn text-xs font-medium px-3 py-2 rounded-lg transition-colors"
+          style="color: #dc2626; border: 1px solid rgba(220,38,38,0.2);"
+          onmouseover="this.style.background='rgba(220,38,38,0.07)'" onmouseout="this.style.background='transparent'">
+          Eliminar
+        </button>
+      </div>
+    `;
+
+    // Attach events (store company data as closure)
+    card.querySelector(".edit-btn")?.addEventListener("click", () => openModal(co));
+    card.querySelector(".del-btn")?.addEventListener("click", () => openDelModal(co.id, co.nombre_comercial || co.razon_social));
+
+    return card;
+  }
+
+  // ── Load companies ─────────────────────────────────────────────────────────
+  async function loadCompanies() {
+    const res = await fetch("/api/companies", { headers: { Authorization: "Bearer " + session() } });
+    if (handleUnauth(res.status)) return;
+    loadingEl.classList.add("hidden");
+    if (!res.ok) { showAlert("No se pudieron cargar las empresas."); return; }
+
+    const data = await res.json() as { companies: Company[] };
+    gridEl.innerHTML = "";
+
+    if (data.companies.length === 0) {
+      emptyEl.classList.remove("hidden");
+      return;
+    }
+
+    for (const co of data.companies) gridEl.appendChild(buildCard(co));
+    gridEl.classList.remove("hidden");
+  }
+
+  loadCompanies();
+</script>

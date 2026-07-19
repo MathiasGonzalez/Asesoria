@@ -457,6 +457,146 @@ app.post("/api/ingest", requireAuth, requireAdmin, async (c) => {
 });
 
 // ---------------------------------------------------------------------------
+// Company profile routes
+// ---------------------------------------------------------------------------
+
+const VALID_TIPOS_ENTIDAD  = ["srl", "sa", "unipersonal", "cooperativa", "ong", "sas", "otro"] as const;
+const VALID_REGIMENES_IRAE = ["real", "forfait", "pequena_empresa", "monotributo", "exonerado", "irnr"] as const;
+
+interface Company {
+  id: string;
+  rut: string;
+  razon_social: string;
+  nombre_comercial: string | null;
+  tipo_entidad: string;
+  regimen_irae: string;
+  actividad: string | null;
+  bps_nro_patronal: string | null;
+  domicilio_fiscal: string | null;
+  created_at: number;
+}
+
+// GET /api/companies
+app.get("/api/companies", requireAuth, async (c) => {
+  const userId = c.get("userId");
+  const rows = await c.env.DB.prepare(
+    `SELECT id, rut, razon_social, nombre_comercial, tipo_entidad, regimen_irae, actividad, bps_nro_patronal, domicilio_fiscal, created_at
+     FROM companies WHERE user_id = ? ORDER BY razon_social ASC`
+  ).bind(userId).all<Company>();
+  return c.json({ companies: rows.results });
+});
+
+// POST /api/companies
+app.post("/api/companies", requireAuth, async (c) => {
+  const userId   = c.get("userId");
+  const tenantId = c.get("tenantId");
+  const body = await c.req.json<{
+    rut?: string; razon_social?: string; nombre_comercial?: string;
+    tipo_entidad?: string; regimen_irae?: string; actividad?: string;
+    bps_nro_patronal?: string; domicilio_fiscal?: string;
+  }>();
+
+  if (!body.rut?.trim() || !body.razon_social?.trim()) {
+    return c.json({ error: "RUT y razón social son requeridos." }, 400);
+  }
+
+  // Normalize and validate RUT (remove separators, must be 12 digits)
+  const rut = body.rut.trim().replace(/[\.\-\s]/g, "");
+  if (!/^\d{12}$/.test(rut)) {
+    return c.json({ error: "El RUT debe tener 12 dígitos (ej: 210000010018)." }, 400);
+  }
+
+  const tipo_entidad = VALID_TIPOS_ENTIDAD.includes(body.tipo_entidad as typeof VALID_TIPOS_ENTIDAD[number])
+    ? body.tipo_entidad! : "srl";
+  const regimen_irae = VALID_REGIMENES_IRAE.includes(body.regimen_irae as typeof VALID_REGIMENES_IRAE[number])
+    ? body.regimen_irae! : "real";
+
+  const id = crypto.randomUUID();
+  try {
+    await c.env.DB.prepare(
+      `INSERT INTO companies (id, user_id, tenant_id, rut, razon_social, nombre_comercial, tipo_entidad, regimen_irae, actividad, bps_nro_patronal, domicilio_fiscal)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ).bind(
+      id, userId, tenantId, rut, body.razon_social.trim(),
+      body.nombre_comercial?.trim() || null,
+      tipo_entidad, regimen_irae,
+      body.actividad?.trim() || null,
+      body.bps_nro_patronal?.trim() || null,
+      body.domicilio_fiscal?.trim() || null
+    ).run();
+  } catch {
+    return c.json({ error: "Ya existe una empresa con ese RUT." }, 409);
+  }
+
+  return c.json({
+    ok: true,
+    company: { id, rut, razon_social: body.razon_social.trim(), nombre_comercial: body.nombre_comercial?.trim() || null, tipo_entidad, regimen_irae },
+  }, 201);
+});
+
+// PUT /api/companies/:id
+app.put("/api/companies/:id", requireAuth, async (c) => {
+  const userId = c.get("userId");
+  const id     = c.req.param("id");
+
+  const exists = await c.env.DB.prepare(
+    "SELECT id FROM companies WHERE id = ? AND user_id = ?"
+  ).bind(id, userId).first<{ id: string }>();
+  if (!exists) return c.json({ error: "Empresa no encontrada." }, 404);
+
+  const body = await c.req.json<{
+    razon_social?: string; nombre_comercial?: string; tipo_entidad?: string;
+    regimen_irae?: string; actividad?: string; bps_nro_patronal?: string; domicilio_fiscal?: string;
+  }>();
+
+  if (!body.razon_social?.trim()) {
+    return c.json({ error: "Razón social es requerida." }, 400);
+  }
+
+  const tipo_entidad = VALID_TIPOS_ENTIDAD.includes(body.tipo_entidad as typeof VALID_TIPOS_ENTIDAD[number])
+    ? body.tipo_entidad! : "srl";
+  const regimen_irae = VALID_REGIMENES_IRAE.includes(body.regimen_irae as typeof VALID_REGIMENES_IRAE[number])
+    ? body.regimen_irae! : "real";
+
+  await c.env.DB.prepare(`
+    UPDATE companies SET
+      razon_social     = ?,
+      nombre_comercial = ?,
+      tipo_entidad     = ?,
+      regimen_irae     = ?,
+      actividad        = ?,
+      bps_nro_patronal = ?,
+      domicilio_fiscal = ?,
+      updated_at       = strftime('%s', 'now')
+    WHERE id = ?
+  `).bind(
+    body.razon_social.trim(),
+    body.nombre_comercial?.trim() || null,
+    tipo_entidad, regimen_irae,
+    body.actividad?.trim() || null,
+    body.bps_nro_patronal?.trim() || null,
+    body.domicilio_fiscal?.trim() || null,
+    id
+  ).run();
+
+  return c.json({ ok: true });
+});
+
+// DELETE /api/companies/:id
+app.delete("/api/companies/:id", requireAuth, async (c) => {
+  const userId = c.get("userId");
+  const id     = c.req.param("id");
+
+  const exists = await c.env.DB.prepare(
+    "SELECT id FROM companies WHERE id = ? AND user_id = ?"
+  ).bind(id, userId).first<{ id: string }>();
+  if (!exists) return c.json({ error: "Empresa no encontrada." }, 404);
+
+  await c.env.DB.prepare("DELETE FROM companies WHERE id = ?").bind(id).run();
+  return c.json({ ok: true });
+});
+
+// ---------------------------------------------------------------------------
 // Tax Analysis routes
 // ---------------------------------------------------------------------------
 
@@ -464,30 +604,51 @@ const TAX_MONTH_NAMES = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio
 const TAX_MAX_DOCS    = 10;
 const TAX_MAX_CHARS   = 8_000;
 
-// GET /api/tax/periods  – list authenticated user's tax periods
+const TIPO_ENTIDAD_LABELS: Record<string, string> = {
+  srl: "Sociedad de Responsabilidad Limitada (SRL)",
+  sa: "Sociedad Anónima (SA)",
+  unipersonal: "Empresa Unipersonal",
+  cooperativa: "Cooperativa",
+  ong: "ONG / Asociación Civil",
+  sas: "Sociedad por Acciones Simplificada (SAS)",
+  otro: "Otro",
+};
+const REGIMEN_IRAE_LABELS: Record<string, string> = {
+  real: "IRAE — Método Real",
+  forfait: "IRAE — Forfait",
+  pequena_empresa: "Pequeña Empresa (IRAE reducido)",
+  monotributo: "Monotributo",
+  exonerado: "Exonerado de IRAE",
+  irnr: "IRNR (No Residente)",
+};
+
+// GET /api/tax/periods  – list authenticated user's tax periods (including company name)
 app.get("/api/tax/periods", requireAuth, async (c) => {
   const userId = c.get("userId");
   const rows = await c.env.DB.prepare(`
-    SELECT p.id, p.month, p.year, p.label, p.status, p.created_at,
-           COUNT(d.id) AS doc_count
+    SELECT p.id, p.month, p.year, p.label, p.status, p.created_at, p.company_id,
+           COUNT(d.id) AS doc_count,
+           c.razon_social AS company_name
     FROM tax_periods p
     LEFT JOIN tax_documents d ON d.period_id = p.id
+    LEFT JOIN companies c ON c.id = p.company_id
     WHERE p.user_id = ?
     GROUP BY p.id
     ORDER BY p.year DESC, p.month DESC
   `).bind(userId).all<{
     id: string; month: number; year: number; label: string;
     status: string; created_at: number; doc_count: number;
+    company_id: string | null; company_name: string | null;
   }>();
   return c.json({ periods: rows.results });
 });
 
 // POST /api/tax/periods  – create a new tax period
-// Body: { month: number, year: number }
+// Body: { month: number, year: number, company_id?: string, notas?: string }
 app.post("/api/tax/periods", requireAuth, async (c) => {
   const userId   = c.get("userId");
   const tenantId = c.get("tenantId");
-  const body = await c.req.json<{ month?: number; year?: number }>();
+  const body = await c.req.json<{ month?: number; year?: number; company_id?: string; notas?: string }>();
   const month = Number(body.month);
   const year  = Number(body.year);
 
@@ -495,18 +656,33 @@ app.post("/api/tax/periods", requireAuth, async (c) => {
     return c.json({ error: "Mes (1-12) y año (>= 2000) son requeridos." }, 400);
   }
 
+  // Validate company_id belongs to this user if provided
+  let companyId: string | null = null;
+  let companyName: string | null = null;
+  if (body.company_id?.trim()) {
+    const co = await c.env.DB.prepare(
+      "SELECT id, razon_social FROM companies WHERE id = ? AND user_id = ?"
+    ).bind(body.company_id.trim(), userId).first<{ id: string; razon_social: string }>();
+    if (!co) return c.json({ error: "Empresa no encontrada." }, 404);
+    companyId   = co.id;
+    companyName = co.razon_social;
+  }
+
   const label = `${TAX_MONTH_NAMES[month - 1]} ${year}`;
   const id    = crypto.randomUUID();
 
   try {
     await c.env.DB.prepare(
-      `INSERT INTO tax_periods (id, user_id, tenant_id, month, year, label) VALUES (?, ?, ?, ?, ?, ?)`
-    ).bind(id, userId, tenantId, month, year, label).run();
+      `INSERT INTO tax_periods (id, user_id, tenant_id, month, year, label, company_id, notas) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+    ).bind(id, userId, tenantId, month, year, label, companyId, body.notas?.trim() || null).run();
   } catch {
-    return c.json({ error: `Ya existe un período para ${label}.` }, 409);
+    return c.json({ error: `Ya existe un período para ${label}${companyId ? ` en ${companyName}` : ""}.` }, 409);
   }
 
-  return c.json({ ok: true, period: { id, month, year, label, status: "draft", doc_count: 0 } }, 201);
+  return c.json({
+    ok: true,
+    period: { id, month, year, label, status: "draft", doc_count: 0, company_id: companyId, company_name: companyName },
+  }, 201);
 });
 
 // DELETE /api/tax/periods/:id
@@ -528,9 +704,20 @@ app.get("/api/tax/periods/:id/documents", requireAuth, async (c) => {
   const userId   = c.get("userId");
   const periodId = c.req.param("id");
 
-  const period = await c.env.DB.prepare(
-    "SELECT id, label, status FROM tax_periods WHERE id = ? AND user_id = ?"
-  ).bind(periodId, userId).first<{ id: string; label: string; status: string }>();
+  const period = await c.env.DB.prepare(`
+    SELECT p.id, p.label, p.status, p.company_id, p.notas,
+           c.rut AS company_rut, c.razon_social AS company_name,
+           c.tipo_entidad, c.regimen_irae, c.actividad, c.bps_nro_patronal
+    FROM tax_periods p
+    LEFT JOIN companies c ON c.id = p.company_id
+    WHERE p.id = ? AND p.user_id = ?
+  `).bind(periodId, userId).first<{
+    id: string; label: string; status: string;
+    company_id: string | null; notas: string | null;
+    company_rut: string | null; company_name: string | null;
+    tipo_entidad: string | null; regimen_irae: string | null;
+    actividad: string | null; bps_nro_patronal: string | null;
+  }>();
   if (!period) return c.json({ error: "Período no encontrado." }, 404);
 
   const rows = await c.env.DB.prepare(
@@ -610,9 +797,19 @@ app.post("/api/tax/periods/:id/consolidate", requireAuth, async (c) => {
   const tenantId = c.get("tenantId");
   const periodId = c.req.param("id");
 
-  const period = await c.env.DB.prepare(
-    "SELECT id, label FROM tax_periods WHERE id = ? AND user_id = ?"
-  ).bind(periodId, userId).first<{ id: string; label: string }>();
+  const period = await c.env.DB.prepare(`
+    SELECT p.id, p.label, p.notas,
+           c.rut AS company_rut, c.razon_social AS company_name,
+           c.tipo_entidad, c.regimen_irae, c.actividad, c.bps_nro_patronal
+    FROM tax_periods p
+    LEFT JOIN companies c ON c.id = p.company_id
+    WHERE p.id = ? AND p.user_id = ?
+  `).bind(periodId, userId).first<{
+    id: string; label: string; notas: string | null;
+    company_rut: string | null; company_name: string | null;
+    tipo_entidad: string | null; regimen_irae: string | null;
+    actividad: string | null; bps_nro_patronal: string | null;
+  }>();
   if (!period) return c.json({ error: "Período no encontrado." }, 404);
 
   const ffService = new FeatureFlagsService(c.env);
@@ -633,27 +830,112 @@ app.post("/api/tax/periods/:id/consolidate", requireAuth, async (c) => {
     .map((d, i) => `--- Documento ${i + 1}: ${d.filename}${d.doc_type ? ` (${d.doc_type})` : ""} ---\n${d.content}`)
     .join("\n\n");
 
-  const prompt = `Sos un contador público experto en impuestos de Uruguay (DGI y BPS). Analizá los siguientes documentos del período ${period.label} y producí un resumen consolidado de la situación impositiva.
+  // Build company context if linked
+  const companyLines: string[] = [];
+  if (period.company_name) {
+    companyLines.push(`EMPRESA ANALIZADA:`);
+    companyLines.push(`  Razón social: ${period.company_name}${period.company_rut ? ` — RUT: ${period.company_rut}` : ""}`);
+    if (period.tipo_entidad) companyLines.push(`  Tipo de entidad: ${TIPO_ENTIDAD_LABELS[period.tipo_entidad] ?? period.tipo_entidad}`);
+    if (period.regimen_irae) companyLines.push(`  Régimen tributario: ${REGIMEN_IRAE_LABELS[period.regimen_irae] ?? period.regimen_irae}`);
+    if (period.actividad)    companyLines.push(`  Actividad económica: ${period.actividad}`);
+    if (period.bps_nro_patronal) companyLines.push(`  N° Patronal BPS: ${period.bps_nro_patronal}`);
+  }
+  if (period.notas) companyLines.push(`\nNOTAS DEL PERÍODO: ${period.notas}`);
+  const companyContext = companyLines.length > 0 ? `\n\n${companyLines.join("\n")}` : "";
 
-Para cada impuesto identificado (IVA, IRAE, IRPF, IRNR, Impuesto al Patrimonio, BPS Patronal, BPS Personal/FONASA u otros relevantes), indicá:
-- tipo: nombre exacto del impuesto
-- base_imponible: monto base imponible (número en pesos uruguayos, o null si no determinable)
+  const prompt = `Sos un contador público matriculado especializado en tributación uruguaya (DGI/BPS). Analizá los documentos del período ${period.label} y producí un análisis tributario completo y profesional.${companyContext}
+
+NORMATIVA VIGENTE URUGUAY (2024-2025):
+
+1. IVA (Impuesto al Valor Agregado):
+   - Tasa básica: 22% | Tasa mínima: 10% (alimentos básicos, medicamentos, construcción)
+   - Declaración mensual: vence entre el 20° y 25° día del mes siguiente (varía por dígito del RUT)
+   - IVA neto = IVA ventas − IVA compras; si es negativo → crédito fiscal a compensar o devolver
+   - Contribuyentes CEDE (grandes contribuyentes): plazos anticipados
+
+2. IRAE (Impuesto a la Renta de Actividades Empresariales):
+   - Tasa general: 25% sobre renta neta fiscal del ejercicio
+   - Anticipo mensual: ~1/12 del impuesto estimado del año; vence ~20-25 del mes siguiente
+   - Régimen forfait: tasa efectiva reducida para pequeñas empresas (facturación ≤ UI 4.000.000)
+   - Pequeña empresa: puede optar por pagar el 25% del impuesto determinado con tasas menores
+   - Declaración jurada anual: Formulario 1101 (vence en abril-mayo del año siguiente)
+   - Mínimo no imponible: UI 30.000 anuales
+
+3. IRPF (Impuesto a la Renta de las Personas Físicas):
+   - Categoría 1 (rendimientos de capital):
+     * Rentas de capital inmobiliario: 10.5%
+     * Otros rendimientos de capital: 12%
+   - Categoría 2 (rentas del trabajo — escala progresiva 2025):
+     * 0-7 BPC/mes → 0% | 7-10 BPC → 10% | 10-25 BPC → 15%
+     * 25-50 BPC → 20% | 50-100 BPC → 25% | 100-180 BPC → 30% | >180 BPC → 36%
+   - BPC 2025 ≈ $ 6.769 (Base de Prestaciones y Contribuciones)
+   - Retenciones mensuales por empleadores: Formulario 2181; vence ~20-25 del mes siguiente
+   - Declaración anual empleados en relación de dependencia: Formulario 1102; vence 30/06
+
+4. IRNR (Impuesto a la Renta de los No Residentes):
+   - Tasa general: 12% sobre rentas de fuente uruguaya
+   - Retención por el pagador local al efectuar el pago
+   - Paraísos fiscales: tasa del 25%
+
+5. IP (Impuesto al Patrimonio):
+   - Empresas y personas jurídicas: 1.5% anual sobre patrimonio fiscal neto
+   - Personas físicas: MNI ~UI 4.774.000; tasas entre 0.1% y 0.7% sobre excedente
+   - Anticipo en el ejercicio; declaración y pago final con balance anual
+
+6. BPS / Seguridad Social:
+   Aportes patronales (a cargo del empleador) sobre salario nominal:
+   - Jubilaciones: 7.5% | FONASA (empleador): 5% | Fondo Reconversión Laboral: 0.1%
+   - Total patronal base ≈ 12.625% (más FGT, aporte de solidaridad según planilla)
+   Aportes personales (a cargo del trabajador):
+   - Jubilaciones: 15% | FONASA (trabajador): 3% a 6% (escala por salario) | IRPF Cat 2
+   - Nómina BPS (sistema SUNA): vence el 10° día del mes siguiente al devengado
+
+7. MONOTRIBUTO (régimen simplificado):
+   - Cuota única mensual (BPS + DGI) — categorías según ingresos anuales:
+     * Cat A: facturación ≤ UI 305.000 | Cat B: ≤ UI 610.000 | Cat C: ≤ UI 915.000
+   - Vencimiento: día 10 del mes siguiente
+   - Incluye jubilaciones + FONASA + contribución especial + IVA ficto + IRPF
+
+8. OTROS TRIBUTOS FRECUENTES:
+   - IMEBA (actividades agropecuarias): tasa variable según producto
+   - Contribución Inmobiliaria: anual, municipio correspondiente
+   - Patente de rodados: anual, municipio
+   - ITP (Impuesto a las Transmisiones Patrimoniales): 2% comprador + 2% vendedor en inmuebles
+
+CALENDARIOS APROXIMADOS DE VENCIMIENTO (mes M, declarado en M+1):
+- IVA + IRAE anticipo + IRPF retenciones: días 20-25 de M+1 (según último dígito RUT)
+- BPS nómina: día 10 de M+1
+- Monotributo: día 10 de M+1
+- IRAE anual (Form 1101): abril-mayo del año siguiente
+- IRPF anual (Form 1102): 30 de junio del año siguiente
+
+FORMULARIOS DGI DE REFERENCIA:
+- Formulario 1101: IRAE anual | Formulario 1102: IRPF anual
+- Formulario 2181: Retenciones IRPF Cat 2 (empleadores)
+- Formulario F.F.: IVA mensual + anticipos IRAE (flujo financiero)
+
+Con base en toda esta normativa y los documentos provistos, generá el análisis tributario completo.
+
+Para cada impuesto identificado indicá:
+- tipo: nombre exacto del impuesto (incluyendo el formulario DGI si aplica)
+- base_imponible: monto base imponible en pesos uruguayos (número, o null)
 - tasa: tasa porcentual aplicable (número, o null)
-- monto_estimado: monto estimado a pagar o retener (número en pesos, o null)
-- vencimiento: fecha de vencimiento sugerida como texto (ej: "20/03/2025"), o null
-- estado: uno de "a_pagar", "retencion", "a_cobrar", "informativo"
-- notas: observaciones importantes (puede ser null)
+- monto_estimado: monto estimado a pagar/retener en pesos (número, o null)
+- vencimiento: fecha estimada de vencimiento (texto "DD/MM/AAAA"), o null
+- estado: "a_pagar" | "retencion" | "a_cobrar" | "informativo"
+- notas: observaciones relevantes (puede ser null)
 
-Respondé ÚNICAMENTE con un objeto JSON válido con esta estructura exacta (sin markdown, sin texto extra):
+Respondé ÚNICAMENTE con un objeto JSON válido con esta estructura (sin markdown, sin texto extra):
 {
   "periodo": "${period.label}",
-  "resumen": "descripción breve de la situación impositiva global",
+  "resumen": "descripción profesional de la situación impositiva global del período",
   "impuestos": [ { "tipo": "...", "base_imponible": ..., "tasa": ..., "monto_estimado": ..., "vencimiento": "...", "estado": "...", "notas": "..." } ],
-  "alertas": ["lista de alertas o advertencias relevantes"],
+  "alertas": ["lista de alertas, riesgos o advertencias tributarias relevantes"],
+  "recomendaciones": ["acciones concretas recomendadas al contribuyente"],
   "total_a_pagar": monto_total_numero_o_null
 }
 
-Si no podés determinar un valor con certeza, usá null. Basate SOLO en los documentos provistos.
+Si no podés determinar un valor con certeza, usá null. Basate SOLO en los documentos provistos y la normativa uruguaya.
 
 ${docsContext}`;
 
@@ -661,7 +943,7 @@ ${docsContext}`;
     messages: [
       {
         role: "system",
-        content: "Sos un asistente contable especializado en impuestos uruguayos. Respondé SOLO con JSON válido sin ningún texto adicional ni bloques de código markdown.",
+        content: "Sos un contador público matriculado en Uruguay especializado en DGI y BPS. Respondé SOLO con JSON válido sin ningún texto adicional ni bloques de código markdown. No incluyas explicaciones antes ni después del JSON.",
       },
       { role: "user", content: prompt },
     ],
