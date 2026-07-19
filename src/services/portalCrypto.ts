@@ -9,10 +9,11 @@
  */
 
 function hexToBytes(hex: string): ArrayBuffer {
-  if (hex.length % 2 !== 0) throw new Error("Invalid hex key length");
-  const buf = new ArrayBuffer(hex.length / 2);
+  if (hex.length !== 64) throw new Error("Key must be a 64-character hex string (32 bytes)");
+  if (!/^[0-9a-fA-F]{64}$/.test(hex)) throw new Error("Key contains invalid hex characters");
+  const buf = new ArrayBuffer(32);
   const view = new Uint8Array(buf);
-  for (let i = 0; i < hex.length; i += 2) {
+  for (let i = 0; i < 64; i += 2) {
     view[i / 2] = parseInt(hex.slice(i, i + 2), 16);
   }
   return buf;

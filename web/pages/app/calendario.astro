@@ -186,6 +186,7 @@ import AppLayout from "../../layouts/AppLayout.astro";
 
   // ── State ─────────────────────────────────────────────────────────────────
   const today = new Date();
+  today.setHours(0, 0, 0, 0);
   let viewYear  = today.getFullYear();
   let viewMonth = today.getMonth() + 1; // 1-12
 
@@ -211,11 +212,10 @@ import AppLayout from "../../layouts/AppLayout.astro";
 
   function urgencyStyle(dueDate: Date): { dot: string; badge: string; row: string } {
     const msPerDay = 86_400_000;
-    const diff = Math.floor((dueDate.getTime() - today.getTime()) / msPerDay);
-    if (diff < 0) {
-      return { dot: "#9ca3af", badge: "background: rgba(100,116,139,0.1); color: #475569;", row: "" };
-    }
-    if (diff === 0) {
+    const normalized = new Date(dueDate);
+    normalized.setHours(0, 0, 0, 0);
+    const diff = Math.floor((normalized.getTime() - today.getTime()) / msPerDay);
+    if (diff <= 0) {
       return { dot: "#dc2626", badge: "background: rgba(220,38,38,0.1); color: #b91c1c;", row: "background: rgba(220,38,38,0.03);" };
     }
     if (diff <= 7) {

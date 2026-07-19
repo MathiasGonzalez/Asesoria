@@ -8,8 +8,9 @@ CREATE TABLE IF NOT EXISTS tax_periods (
   year       INTEGER NOT NULL CHECK(year >= 2000),
   label      TEXT    NOT NULL,
   status     TEXT    NOT NULL DEFAULT 'draft',
+  company_id TEXT,
   created_at INTEGER DEFAULT (strftime('%s', 'now')),
-  UNIQUE(user_id, month, year),
+  UNIQUE(user_id, month, year, company_id),
   FOREIGN KEY(user_id)   REFERENCES users(id)   ON DELETE CASCADE,
   FOREIGN KEY(tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
 );

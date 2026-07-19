@@ -20,7 +20,6 @@ CREATE TABLE IF NOT EXISTS companies (
 );
 
 -- Link tax periods to a company profile (optional) and allow free-text notes
-ALTER TABLE tax_periods ADD COLUMN company_id TEXT;
 ALTER TABLE tax_periods ADD COLUMN notas      TEXT;
 
 CREATE INDEX IF NOT EXISTS idx_companies_user ON companies(user_id);

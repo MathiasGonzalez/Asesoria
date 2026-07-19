@@ -11,7 +11,7 @@ All `/api/*` endpoints are subject to **rate limiting**: 20 requests per IP per 
 Protected endpoints require a session token in the `Authorization` header:
 
 ```
-Authorization: ******
+Authorization: Bearer <token>
 ```
 
 Session tokens are issued by `POST /api/auth/verify-otp` and expire **24 hours** after creation.

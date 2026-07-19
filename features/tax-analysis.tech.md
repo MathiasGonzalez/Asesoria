@@ -61,7 +61,7 @@ src/
 
 ## Esquema D1
 
-Migración: `migrations/0005_tax.sql`
+Migración: `migrations/0005_tax_analysis.sql`
 
 ```sql
 CREATE TABLE tax_periods (id TEXT PRIMARY KEY, user_id TEXT, tenant_id TEXT,
