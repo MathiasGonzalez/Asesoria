@@ -1,3 +1,31 @@
+/**
+ * Adviser — Cloudflare Worker entry point.
+ *
+ * This file wires all API routes using the **Hono** framework and exports
+ * the application as the default Worker handler.
+ *
+ * ## Middleware
+ * - **Rate limiting** (`/api/*`): 20 req/IP/60 s via `RATE_LIMITER`.
+ * - **Auth** (`requireAuth`): validates `Authorization: ****** against D1
+ *   and populates `userId`, `tenantId`, `email`, `role` context variables.
+ * - **Admin guard** (`requireAdmin`): additional check requiring `role === 'admin'`.
+ *
+ * ## Route groups
+ * | Prefix | Description |
+ * |--------|-------------|
+ * | `/api/auth/*` | Passwordless OTP login / logout |
+ * | `/api/terms/*` | Terms & conditions version |
+ * | `/api/me` | Authenticated user info |
+ * | `/api/feature-flags` | Tenant feature flag map |
+ * | `/api/documents` | RAG corpus management (list / ingest / delete) |
+ * | `/api/search` | AI-powered normative search |
+ * | `/api/history` | Paginated query history |
+ * | `/api/companies` | Company profile CRUD |
+ * | `/api/tax/*` | Tax period management and AI consolidation |
+ * | `/api/portal/*` | DGI/BPS portal automation via Browser Rendering |
+ * | `*` | Static Astro frontend assets |
+ */
+
 import { Hono, type MiddlewareHandler } from "hono";
 import { Anonymizer } from "./services/anonymizer.js";
 import { RagService } from "./services/rag.js";
@@ -14,27 +42,70 @@ interface RateLimit {
   limit(options: { key: string }): Promise<{ success: boolean }>;
 }
 
+/**
+ * Cloudflare Worker bindings available in every request context.
+ * All bindings are declared in `wrangler.jsonc`; secrets are set via
+ * `wrangler secret put <NAME>`.
+ */
 interface Bindings {
+  /** Cloudflare D1 database — primary relational store. */
   DB: D1Database;
+  /** Cloudflare Vectorize index — 1024-dim bge-m3 embeddings for semantic search. */
   VECTORIZE: VectorizeIndex;
+  /** Workers AI binding — LLM inference and embedding generation at the edge. */
   AI: Ai;
+  /** Static asset fetcher — serves the compiled Astro frontend from `./dist`. */
   ASSETS: Fetcher;
+  /** Workers Rate Limiting — 20 req/IP/60 s across all `/api/*` routes. */
   RATE_LIMITER: RateLimit;
+  /**
+   * Cloudflare Email Send binding (beta).
+   * When present, OTP emails are sent via the Workers Email API.
+   * If absent, the service falls back to the Resend HTTP API.
+   */
   EMAIL_SEND?: SendEmailBinding;
+  /**
+   * Resend API key — fallback email provider when `EMAIL_SEND` is not configured.
+   * Set via: `wrangler secret put EMAIL_API_KEY`
+   */
   EMAIL_API_KEY?: string;
+  /**
+   * Verified sender address for transactional email.
+   * Set via: `wrangler secret put EMAIL_FROM`
+   */
   EMAIL_FROM: string;
+  /**
+   * Cloudflare R2 bucket for persistent document storage (tax period uploads).
+   * Optional so that local development works without an R2 bucket.
+   */
   DOCUMENTS_BUCKET?: R2Bucket;
-  /** Cloudflare Browser Rendering binding — optional so local dev still works. */
+  /**
+   * Cloudflare Browser Rendering binding — powers DGI/BPS portal automation.
+   * Requires a paid Cloudflare plan. Optional so local dev still works.
+   */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   BROWSER?: any;
-  /** 64-char hex AES-256-GCM key for encrypting portal session cookies. */
+  /**
+   * 64-character lowercase hex string (32 bytes) used as the AES-256-GCM key
+   * for encrypting DGI/BPS portal session cookies at rest in D1.
+   * Generate with: `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`
+   * Set via: `wrangler secret put PORTAL_ENCRYPTION_KEY`
+   */
   PORTAL_ENCRYPTION_KEY?: string;
 }
 
+/**
+ * Hono context variables set by `requireAuth` middleware.
+ * Available in all routes that use `requireAuth` via `c.get(...)`.
+ */
 type Variables = {
+  /** UUID of the authenticated user. */
   userId: string;
+  /** UUID of the tenant the user belongs to. */
   tenantId: string;
+  /** Verified email address of the authenticated user. */
   email: string;
+  /** RBAC role: `'admin'` or `'viewer'`. */
   role: string;
 };
 

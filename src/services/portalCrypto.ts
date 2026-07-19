@@ -42,9 +42,15 @@ async function importKey(hexKey: string): Promise<CryptoKey> {
   );
 }
 
+/**
+ * Encrypted payload produced by `encryptData` and consumed by `decryptData`.
+ * Both fields are base64-encoded to allow safe storage in D1 TEXT columns.
+ */
 export interface EncryptedPayload {
-  ciphertext: string; // base64-encoded
-  iv: string;         // base64-encoded 12-byte GCM IV
+  /** AES-256-GCM ciphertext, base64-encoded. */
+  ciphertext: string;
+  /** 12-byte GCM Initialization Vector, base64-encoded. A fresh IV is generated per encryption. */
+  iv: string;
 }
 
 /**

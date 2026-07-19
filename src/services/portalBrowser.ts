@@ -18,31 +18,52 @@ import puppeteer from "@cloudflare/puppeteer";
 // Public types
 // ---------------------------------------------------------------------------
 
+/** Supported government portal identifiers. */
 export type Portal = "dgi" | "bps";
 
+/**
+ * Supported automated tasks.
+ * - `consulta_estado_cuenta` — retrieves the current account balance/status.
+ * - `descarga_constancia` — downloads the fiscal standing certificate (constancia de situación fiscal / vigencia).
+ * - `consulta_deuda` — retrieves outstanding debt details.
+ */
 export type PortalTask =
   | "consulta_estado_cuenta"
   | "descarga_constancia"
   | "consulta_deuda";
 
+/**
+ * A single browser cookie — mirrors the Puppeteer `Protocol.Network.Cookie` shape
+ * but only includes fields needed for session restoration.
+ */
 export interface PortalCookie {
   name: string;
   value: string;
   domain: string;
   path: string;
+  /** Unix timestamp (seconds) when the cookie expires, or -1 for session cookies. */
   expires?: number;
   httpOnly?: boolean;
   secure?: boolean;
   sameSite?: string;
 }
 
+/**
+ * Result returned by `PortalBrowserService.login`.
+ * On success `cookies` contains the captured session cookies ready for encryption.
+ */
 export interface LoginResult {
   success: boolean;
   cookies?: PortalCookie[];
-  /** Human-readable error, suitable for displaying to the user. */
+  /** Human-readable error message suitable for displaying to the end-user. */
   error?: string;
 }
 
+/**
+ * Result returned by `PortalBrowserService.runTask`.
+ * On success `data.raw_text` holds the raw page text (up to 8 000 chars)
+ * which callers may pass to an AI analysis step.
+ */
 export interface TaskResult {
   success: boolean;
   /** Raw extracted data — callers may pipe this into an AI analysis step. */

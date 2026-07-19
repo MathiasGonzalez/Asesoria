@@ -143,6 +143,30 @@ El workflow se activa automáticamente:
 - **Push a `main`** → aplica migraciones + deploya en producción
 - **Push a `develop`** → aplica migraciones + deploya en ambiente develop aislado
 
+## Secretos y variables de entorno
+
+| Secreto / Variable | Requerido | Descripción |
+|--------------------|-----------|-------------|
+| `EMAIL_FROM` | ✅ | Dirección de envío verificada, e.g. `"noreply@tudominio.com"` |
+| `EMAIL_API_KEY` | ⚠️ | API key de Resend — sólo necesaria si no se configura el binding `EMAIL_SEND` |
+| `PORTAL_ENCRYPTION_KEY` | ⚠️ | Clave hex de 64 caracteres (32 bytes) para cifrado AES-256-GCM de cookies DGI/BPS. Generar con: `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`. Requerida sólo si se usa automatización de portales. |
+
+> **⚠️ = Condicional**: requerido sólo cuando se usa la funcionalidad correspondiente.
+
+Todos los secretos se configuran con:
+```bash
+npx wrangler secret put <NOMBRE>
+# Para develop: npx wrangler secret put <NOMBRE> --env develop
+```
+
+## Documentación técnica
+
+| Documento | Descripción |
+|-----------|-------------|
+| [`docs/api.md`](./docs/api.md) | Referencia completa de la API REST (todos los endpoints, request/response) |
+| [`docs/database.md`](./docs/database.md) | Esquema completo de la base de datos D1 (todas las tablas, índices, migraciones) |
+| [`DEPLOY.md`](./DEPLOY.md) | Guía detallada de despliegue |
+
 ## Documentación de features
 
 Ver carpeta [`features/`](./features/) para documentación detallada de cada funcionalidad:
@@ -156,3 +180,7 @@ Ver carpeta [`features/`](./features/) para documentación detallada de cada fun
 - [`document-ingestion.md`](./features/document-ingestion.md) — API de ingestión de documentos
 - [`ai-grounded-answers.md`](./features/ai-grounded-answers.md) — Generación grounded con IA
 - [`public-private-web.md`](./features/public-private-web.md) — Arquitectura web pública/privada
+- [`tax-analysis.md`](./features/tax-analysis.md) — Análisis tributario con IA
+- [`company-profiles.md`](./features/company-profiles.md) — Perfiles de empresas
+- [`dgi-bps-portal.md`](./features/dgi-bps-portal.md) — Automatización de portales DGI/BPS
+- [`document-storage.md`](./features/document-storage.md) — Almacenamiento de documentos en R2
