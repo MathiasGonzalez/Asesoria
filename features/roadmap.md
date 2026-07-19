@@ -103,8 +103,7 @@ Funcionalidades derivadas del análisis de mercado que representan oportunidades
 ### Integraciones externas
 
 - **Open Banking (cuando disponible en UY)**: importación automática de extractos via API bancaria.
-- **SIGA DGI**: prefill de formularios DGI desde los datos calculados en Adviser.
-- **SUNA BPS**: envío directo de la declaración mensual al portal BPS.
+- **SIGA DGI / SUNA BPS**: automatización de portales gubernamentales vía browser headless para consultar deuda, estado de cuenta y descargar constancias. `dgi-bps-portal.md` | `dgi-bps-portal.tech.md`
 - **Google Drive / Dropbox**: sincronización automática de documentos desde carpetas del cliente.
 - **Zapier / Make**: webhooks para integrar con otras herramientas del negocio.
 

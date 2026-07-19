@@ -4,6 +4,8 @@ import { RagService } from "./services/rag.js";
 import { AuthService } from "./services/auth.js";
 import { EmailService, type SendEmailBinding } from "./services/email.js";
 import { FeatureFlagsService } from "./services/featureFlags.js";
+import { encryptData, decryptData } from "./services/portalCrypto.js";
+import { PortalBrowserService, type Portal, type PortalTask, type PortalCookie } from "./services/portalBrowser.js";
 
 // Bump this string whenever the T&C text changes to force re-acceptance.
 const CURRENT_TERMS_VERSION = "1.0";
@@ -22,6 +24,11 @@ interface Bindings {
   EMAIL_API_KEY?: string;
   EMAIL_FROM: string;
   DOCUMENTS_BUCKET?: R2Bucket;
+  /** Cloudflare Browser Rendering binding — optional so local dev still works. */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  BROWSER?: any;
+  /** 64-char hex AES-256-GCM key for encrypting portal session cookies. */
+  PORTAL_ENCRYPTION_KEY?: string;
 }
 
 type Variables = {
@@ -1201,6 +1208,277 @@ app.get("/api/tax/periods/:id/consolidation", requireAuth, async (c) => {
   if (!result) return c.json({ analyzed: false });
 
   return c.json({ analyzed: true, raw_response: result.raw_response, created_at: result.created_at });
+});
+
+// ---------------------------------------------------------------------------
+// Portal automation routes — DGI SIGA and BPS SUNA
+// Gated behind the `portal_automation_enabled` feature flag.
+// All routes expect the request body / query to include a `company_id` that
+// belongs to the authenticated user.
+// ---------------------------------------------------------------------------
+
+const VALID_PORTALS: Portal[] = ["dgi", "bps"];
+const VALID_TASKS: PortalTask[] = [
+  "consulta_estado_cuenta",
+  "descarga_constancia",
+  "consulta_deuda",
+];
+
+function isValidPortal(v: unknown): v is Portal {
+  return typeof v === "string" && (VALID_PORTALS as string[]).includes(v);
+}
+
+function isValidTask(v: unknown): v is PortalTask {
+  return typeof v === "string" && (VALID_TASKS as string[]).includes(v);
+}
+
+// Helper: resolve the encrypted cookies for a (company, portal) pair.
+async function getPortalSession(
+  db: D1Database,
+  userId: string,
+  companyId: string,
+  portal: Portal
+): Promise<{ id: string; ciphertext: string; iv: string } | null> {
+  return db
+    .prepare(
+      `SELECT id, encrypted_cookies AS ciphertext, cookies_iv AS iv
+       FROM portal_sessions
+       WHERE company_id = ? AND user_id = ? AND portal = ?`
+    )
+    .bind(companyId, userId, portal)
+    .first<{ id: string; ciphertext: string; iv: string }>();
+}
+
+// POST /api/portal/:portal/connect
+// Body: { company_id: string, username: string, password: string }
+// Logs in to the portal, encrypts the resulting session cookies, and stores
+// them in `portal_sessions` (upsert). Returns { ok: true } on success.
+app.post("/api/portal/:portal/connect", requireAuth, async (c) => {
+  const portal = c.req.param("portal");
+  if (!isValidPortal(portal)) {
+    return c.json({ error: "Portal no válido. Usá 'dgi' o 'bps'." }, 400);
+  }
+
+  const tenantId = c.get("tenantId");
+  const userId   = c.get("userId");
+
+  const ffService = new FeatureFlagsService(c.env);
+  const flags     = await ffService.getFlags(tenantId);
+  if (!flags["portal_automation_enabled"]) {
+    return c.json({ error: "La automatización de portales no está habilitada." }, 503);
+  }
+
+  if (!c.env.BROWSER) {
+    return c.json(
+      { error: "Browser Rendering no está configurado en este entorno." },
+      503
+    );
+  }
+  if (!c.env.PORTAL_ENCRYPTION_KEY) {
+    return c.json(
+      { error: "La clave de cifrado de portales no está configurada." },
+      503
+    );
+  }
+
+  const body = await c.req.json<{
+    company_id?: string;
+    username?: string;
+    password?: string;
+  }>();
+
+  if (!body.company_id?.trim() || !body.username?.trim() || !body.password?.trim()) {
+    return c.json({ error: "company_id, username y password son requeridos." }, 400);
+  }
+
+  // Verify the company belongs to the authenticated user
+  const company = await c.env.DB.prepare(
+    "SELECT id FROM companies WHERE id = ? AND user_id = ?"
+  )
+    .bind(body.company_id.trim(), userId)
+    .first<{ id: string }>();
+  if (!company) {
+    return c.json({ error: "Empresa no encontrada." }, 404);
+  }
+
+  const browserService = new PortalBrowserService(c.env.BROWSER);
+  const result = await browserService.login(portal, body.username.trim(), body.password.trim());
+
+  if (!result.success || !result.cookies) {
+    return c.json({ error: result.error ?? "No se pudo iniciar sesión en el portal." }, 422);
+  }
+
+  // Encrypt cookies before persisting
+  const cookiesJson = JSON.stringify(result.cookies);
+  const { ciphertext, iv } = await encryptData(cookiesJson, c.env.PORTAL_ENCRYPTION_KEY);
+
+  const now = Math.floor(Date.now() / 1000);
+  const id  = crypto.randomUUID();
+
+  await c.env.DB.prepare(
+    `INSERT INTO portal_sessions
+       (id, company_id, user_id, portal, encrypted_cookies, cookies_iv, session_established_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT(company_id, portal) DO UPDATE SET
+       encrypted_cookies      = excluded.encrypted_cookies,
+       cookies_iv             = excluded.cookies_iv,
+       session_established_at = excluded.session_established_at,
+       updated_at             = strftime('%s', 'now')`
+  )
+    .bind(id, body.company_id.trim(), userId, portal, ciphertext, iv, now)
+    .run();
+
+  return c.json({
+    ok: true,
+    message: `Sesión ${portal.toUpperCase()} establecida correctamente.`,
+  });
+});
+
+// GET /api/portal/:portal/status?company_id=xxx
+// Returns whether a stored session exists for the given company + portal.
+app.get("/api/portal/:portal/status", requireAuth, async (c) => {
+  const portal = c.req.param("portal");
+  if (!isValidPortal(portal)) {
+    return c.json({ error: "Portal no válido. Usá 'dgi' o 'bps'." }, 400);
+  }
+
+  const userId    = c.get("userId");
+  const companyId = c.req.query("company_id");
+  if (!companyId?.trim()) {
+    return c.json({ error: "El parámetro company_id es requerido." }, 400);
+  }
+
+  const session = await getPortalSession(c.env.DB, userId, companyId.trim(), portal);
+
+  return c.json({ connected: session !== null });
+});
+
+// POST /api/portal/:portal/task
+// Body: { company_id: string, task: PortalTask, params?: Record<string, string> }
+// Restores the stored session and executes the requested task.
+// If the session has expired, returns { expired: true } so the client can
+// prompt the user to reconnect.
+app.post("/api/portal/:portal/task", requireAuth, async (c) => {
+  const portal = c.req.param("portal");
+  if (!isValidPortal(portal)) {
+    return c.json({ error: "Portal no válido. Usá 'dgi' o 'bps'." }, 400);
+  }
+
+  const tenantId = c.get("tenantId");
+  const userId   = c.get("userId");
+
+  const ffService = new FeatureFlagsService(c.env);
+  const flags     = await ffService.getFlags(tenantId);
+  if (!flags["portal_automation_enabled"]) {
+    return c.json({ error: "La automatización de portales no está habilitada." }, 503);
+  }
+
+  if (!c.env.BROWSER) {
+    return c.json(
+      { error: "Browser Rendering no está configurado en este entorno." },
+      503
+    );
+  }
+  if (!c.env.PORTAL_ENCRYPTION_KEY) {
+    return c.json(
+      { error: "La clave de cifrado de portales no está configurada." },
+      503
+    );
+  }
+
+  const body = await c.req.json<{
+    company_id?: string;
+    task?: string;
+    params?: Record<string, string>;
+  }>();
+
+  if (!body.company_id?.trim()) {
+    return c.json({ error: "company_id es requerido." }, 400);
+  }
+  if (!isValidTask(body.task)) {
+    return c.json(
+      { error: `Tarea no válida. Opciones: ${VALID_TASKS.join(", ")}.` },
+      400
+    );
+  }
+
+  // Load the stored encrypted session
+  const session = await getPortalSession(
+    c.env.DB,
+    userId,
+    body.company_id.trim(),
+    portal
+  );
+  if (!session) {
+    return c.json(
+      { error: "No hay sesión activa para este portal. Conectá el portal primero." },
+      422
+    );
+  }
+
+  // Decrypt cookies
+  let cookies: PortalCookie[];
+  try {
+    const plain = await decryptData(
+      { ciphertext: session.ciphertext, iv: session.iv },
+      c.env.PORTAL_ENCRYPTION_KEY
+    );
+    cookies = JSON.parse(plain) as PortalCookie[];
+  } catch {
+    return c.json(
+      { error: "No se pudieron descifrar las cookies almacenadas. Reconectá el portal." },
+      500
+    );
+  }
+
+  const browserService = new PortalBrowserService(c.env.BROWSER);
+  const result = await browserService.runTask(portal, cookies, body.task, body.params);
+
+  // If the session expired, signal the client clearly
+  if (!result.success && result.error?.includes("expiró")) {
+    return c.json({ expired: true, error: result.error }, 401);
+  }
+
+  if (!result.success) {
+    return c.json({ error: result.error ?? "Error al ejecutar la tarea." }, 502);
+  }
+
+  // Record last_used_at (non-blocking)
+  c.executionCtx?.waitUntil(
+    c.env.DB.prepare(
+      "UPDATE portal_sessions SET last_used_at = strftime('%s', 'now'), updated_at = strftime('%s', 'now') WHERE id = ?"
+    )
+      .bind(session.id)
+      .run()
+      .catch((err: unknown) => console.error("portal_sessions update failed:", err))
+  );
+
+  return c.json({ ok: true, task: body.task, data: result.data });
+});
+
+// DELETE /api/portal/:portal/disconnect
+// Body: { company_id: string }
+// Clears the stored session for the given company + portal.
+app.delete("/api/portal/:portal/disconnect", requireAuth, async (c) => {
+  const portal = c.req.param("portal");
+  if (!isValidPortal(portal)) {
+    return c.json({ error: "Portal no válido. Usá 'dgi' o 'bps'." }, 400);
+  }
+
+  const userId = c.get("userId");
+  const body   = await c.req.json<{ company_id?: string }>();
+
+  if (!body.company_id?.trim()) {
+    return c.json({ error: "company_id es requerido." }, 400);
+  }
+
+  await c.env.DB.prepare(
+    "DELETE FROM portal_sessions WHERE company_id = ? AND user_id = ? AND portal = ?"
+  )
+    .bind(body.company_id.trim(), userId, portal)
+    .run();
+
+  return c.json({ ok: true });
 });
 
 // ---------------------------------------------------------------------------
