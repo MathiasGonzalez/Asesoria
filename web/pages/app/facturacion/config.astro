@@ -180,6 +180,11 @@ import AppLayout from "../../../layouts/AppLayout.astro";
       error?: string;
     }>();
 
+    if (!res.ok) {
+      showAlert(data.error ?? "Error al cargar la configuración.");
+      return;
+    }
+
     document.getElementById("config-section")!.style.display = "flex";
     document.getElementById("config-section")!.style.flexDirection = "column";
 
@@ -196,18 +201,38 @@ import AppLayout from "../../../layouts/AppLayout.astro";
     const list = document.getElementById("cae-list")!;
     list.innerHTML = '<p class="text-xs" style="color:#6b7280;">Cargando...</p>';
 
-    const res = await fetch("/api/cfe/documents?company_id=" + companyId + "&limit=1", { headers: auth() });
-    // We use the documents endpoint just to confirm the company is accessible.
-    // CAEs are loaded from a dedicated endpoint below.
-    // For now we render a placeholder if no endpoint exists.
-    list.innerHTML = "";
+    try {
+      const res  = await fetch("/api/cfe/caes?company_id=" + companyId, { headers: auth() });
+      const data = await res.json<{
+        caes?: {
+          id: string; tipo_cfe: number; serie: string;
+          rango_desde: number; rango_hasta: number;
+          ultimo_nro_usado: number; fecha_vencimiento: string | null;
+        }[];
+      }>();
+      list.innerHTML = "";
 
-    // Placeholder message — real CAE list would come from GET /api/cfe/caes endpoint (future)
-    const p = document.createElement("p");
-    p.className = "text-xs";
-    p.style.color = "#9ca3af";
-    p.textContent = "Los rangos CAE registrados aparecerán aquí.";
-    list.appendChild(p);
+      if (!res.ok || !data.caes || data.caes.length === 0) {
+        const p = document.createElement("p");
+        p.className = "text-xs";
+        p.style.color = "#9ca3af";
+        p.textContent = "No hay rangos CAE registrados.";
+        list.appendChild(p);
+        return;
+      }
+
+      data.caes.forEach(cae => {
+        const row = document.createElement("div");
+        row.className = "flex items-center justify-between gap-2 text-xs rounded-xl px-3 py-2";
+        row.style.cssText = "background: rgba(79,70,229,0.04); border: 1px solid rgba(79,70,229,0.10);";
+        const label = TIPO_LABELS[String(cae.tipo_cfe)] ?? `CFE ${cae.tipo_cfe}`;
+        const vence = cae.fecha_vencimiento ? ` · vence ${cae.fecha_vencimiento}` : "";
+        row.textContent = `${label} serie ${cae.serie}: ${cae.rango_desde}–${cae.rango_hasta} (usado: ${cae.ultimo_nro_usado})${vence}`;
+        list.appendChild(row);
+      });
+    } catch {
+      list.innerHTML = '<p class="text-xs" style="color:#b91c1c;">Error al cargar los rangos CAE.</p>';
+    }
   }
 
   async function loadCompanies() {

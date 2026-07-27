@@ -58,7 +58,7 @@ import AppLayout from "../../layouts/AppLayout.astro";
   <!-- Filters -->
   <div class="flex flex-wrap gap-3 items-center">
     <select id="filter-company" class="text-sm rounded-xl px-3 py-2 border" style="border-color: rgba(0,0,0,0.12); background: white; color: #374151;">
-      <option value="">Todas las empresas</option>
+      <option value="">Seleccioná una empresa</option>
     </select>
     <select id="filter-tipo" class="text-sm rounded-xl px-3 py-2 border" style="border-color: rgba(0,0,0,0.12); background: white; color: #374151;">
       <option value="">Todos los tipos</option>
@@ -212,6 +212,15 @@ import AppLayout from "../../layouts/AppLayout.astro";
     return new Intl.NumberFormat("es-UY", { style: "currency", currency: "UYU", maximumFractionDigits: 2 }).format(n);
   }
 
+  function escapeHtml(value: unknown): string {
+    return String(value ?? "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
+
   function formatDate(iso: string) {
     const [y, m, d] = iso.split("-");
     return `${d}/${m}/${y}`;
@@ -223,47 +232,58 @@ import AppLayout from "../../layouts/AppLayout.astro";
     el.className = "rounded-2xl p-4";
     el.style.cssText = "background: white; border: 1px solid rgba(0,0,0,0.07);";
 
+    const eSerie    = escapeHtml(doc.serie);
+    const eNumero   = escapeHtml(doc.numero);
+    const eEstado   = escapeHtml(doc.estado);
+    const eConcepto = escapeHtml(doc.concepto);
+    const eRazon    = escapeHtml(doc.razon_receptor);
+    const eRut      = escapeHtml(doc.rut_receptor);
+    const eIvaTasa  = escapeHtml(doc.iva_tasa);
+    const eFecha    = escapeHtml(doc.fecha_emision);
+    const eId       = escapeHtml(doc.id);
+    const eCae      = escapeHtml(doc.cae_numero);
+
     el.innerHTML = `
       <div class="flex flex-col gap-2">
         <div class="flex items-start justify-between gap-3 flex-wrap">
           <div class="flex flex-col gap-0.5">
             <div class="flex items-center gap-2">
               <span class="text-xs font-semibold px-2 py-0.5 rounded-lg" style="background: rgba(79,70,229,0.08); color: #4f46e5;">
-                ${TIPO_LABELS[tipo] ?? "CFE " + tipo}
+                ${escapeHtml(TIPO_LABELS[tipo] ?? "CFE " + tipo)}
               </span>
-              ${doc.numero ? `<span class="text-xs" style="color: #6b7280;">${doc.serie ?? ""}${doc.numero}</span>` : ""}
+              ${doc.numero ? `<span class="text-xs" style="color: #6b7280;">${eSerie}${eNumero}</span>` : ""}
               <span class="text-xs font-medium px-2 py-0.5 rounded-lg" style="background: ${ESTADO_COLORS[doc.estado as string] ?? "rgba(107,114,128,0.1)"}; color: ${ESTADO_TEXT[doc.estado as string] ?? "#6b7280"};">
-                ${doc.estado}
+                ${eEstado}
               </span>
             </div>
-            <p class="text-sm font-medium" style="color: #0f1117;">${doc.concepto}</p>
-            ${doc.razon_receptor ? `<p class="text-xs" style="color: #6b7280;">→ ${doc.razon_receptor}${doc.rut_receptor ? ` (RUT ${doc.rut_receptor})` : ""}</p>` : "<p class='text-xs' style='color:#6b7280;'>→ Consumidor Final</p>"}
+            <p class="text-sm font-medium" style="color: #0f1117;">${eConcepto}</p>
+            ${doc.razon_receptor ? `<p class="text-xs" style="color: #6b7280;">→ ${eRazon}${doc.rut_receptor ? ` (RUT ${eRut})` : ""}</p>` : "<p class='text-xs' style='color:#6b7280;'>→ Consumidor Final</p>"}
           </div>
           <div class="flex flex-col items-end gap-1">
             <span class="text-base font-bold" style="color: #0f1117;">${formatCurrency(Number(doc.total))}</span>
-            <span class="text-xs" style="color: #6b7280;">IVA ${doc.iva_tasa === "exento" ? "Exento" : doc.iva_tasa + "%"}: ${formatCurrency(Number(doc.monto_iva))}</span>
-            <span class="text-xs" style="color: #9ca3af;">${formatDate(doc.fecha_emision as string)}</span>
+            <span class="text-xs" style="color: #6b7280;">IVA ${doc.iva_tasa === "exento" ? "Exento" : eIvaTasa + "%"}: ${formatCurrency(Number(doc.monto_iva))}</span>
+            <span class="text-xs" style="color: #9ca3af;">${formatDate(eFecha)}</span>
           </div>
         </div>
         <div class="flex items-center gap-2 pt-1 border-t" style="border-color: rgba(0,0,0,0.05);">
           ${doc.has_xml ? `
             <button class="btn-dl-xml text-xs font-medium transition-colors px-2 py-1 rounded-lg"
-              data-id="${doc.id}"
+              data-id="${eId}"
               style="color: #4f46e5;"
               onmouseover="this.style.background='rgba(79,70,229,0.07)'" onmouseout="this.style.background='transparent'">
               ↓ XML
             </button>` : ""}
-          ${doc.cae_numero ? `<span class="text-xs" style="color: #6b7280;">CAE: ${doc.cae_numero}</span>` : ""}
+          ${doc.cae_numero ? `<span class="text-xs" style="color: #6b7280;">CAE: ${eCae}</span>` : ""}
           ${doc.estado !== "anulado" && doc.estado !== "borrador" ? `
             <button class="btn-annul text-xs font-medium transition-colors px-2 py-1 rounded-lg ml-auto"
-              data-id="${doc.id}"
+              data-id="${eId}"
               style="color: #dc2626;"
               onmouseover="this.style.background='rgba(220,38,38,0.07)'" onmouseout="this.style.background='transparent'">
               Anular
             </button>` : ""}
           ${doc.estado === "borrador" ? `
             <button class="btn-delete text-xs font-medium transition-colors px-2 py-1 rounded-lg ml-auto"
-              data-id="${doc.id}"
+              data-id="${eId}"
               style="color: #dc2626;"
               onmouseover="this.style.background='rgba(220,38,38,0.07)'" onmouseout="this.style.background='transparent'">
               Eliminar
@@ -402,7 +422,10 @@ import AppLayout from "../../layouts/AppLayout.astro";
       const blob = await res.blob();
       a.href = URL.createObjectURL(blob);
       const cd  = res.headers.get("Content-Disposition") ?? "";
-      const fn  = cd.match(/filename="([^"]+)"/)?.[1] ?? "cfe.xml";
+      const fnStar = cd.match(/filename\*=UTF-8''([^\s;]+)/i)?.[1];
+      const fn  = fnStar
+        ? decodeURIComponent(fnStar)
+        : decodeURIComponent(cd.match(/filename="([^"]+)"/)?.[1] ?? "cfe.xml");
       a.download = fn;
       a.click();
       URL.revokeObjectURL(a.href);

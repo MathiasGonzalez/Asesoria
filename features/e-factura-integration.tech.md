@@ -169,7 +169,7 @@ Al cerrar el mes, el endpoint `POST /api/cfe/generate-iva-book` agrega automáti
 
 ## Feature flag
 
-`efactura_enabled` — protege todos los endpoints `/api/cfe/*` y la generación automática de libros IVA.
+`cfe_enabled` — protege todos los endpoints `/api/cfe/*` y la generación automática de libros IVA.
 
 ## Checklist de implementación técnica
 

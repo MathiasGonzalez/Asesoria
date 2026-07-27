@@ -230,6 +230,7 @@ import AppLayout from "../../../layouts/AppLayout.astro";
     const warn = document.getElementById("config-warning")!;
     if (!companyId) { warn.style.display = "none"; return; }
     const res  = await fetch("/api/cfe/config?company_id=" + companyId, { headers: auth() });
+    if (res.status === 503) { warn.style.display = "none"; return; } // feature flag disabled, not a config issue
     const data = await res.json<{ config?: unknown }>();
     warn.style.display = (!res.ok || !data.config) ? "block" : "none";
   }

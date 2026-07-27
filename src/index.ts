@@ -1566,7 +1566,8 @@ app.delete("/api/portal/:portal/disconnect", requireAuth, async (c) => {
 // All routes expect `company_id` to belong to the authenticated user.
 // Actual XML signing and DGI communication is proxied to the UruFactura
 // Container (MathiasGonzalez/UruFactura). If the container is not configured,
-// routes that require it return 503 with a descriptive error.
+// POST /api/cfe/emit degrades gracefully and saves the CFE as a draft (202);
+// routes that require the container for operations other than emission return 503.
 // ---------------------------------------------------------------------------
 
 const VALID_TIPOS_CFE = [101, 111, 112, 121, 151, 181, 102] as const;
@@ -1737,6 +1738,38 @@ app.post("/api/cfe/caes", requireAuth, async (c) => {
   return c.json({ ok: true });
 });
 
+// GET /api/cfe/caes  — list CAE ranges for a company
+// Query: company_id (required)
+app.get("/api/cfe/caes", requireAuth, async (c) => {
+  const tenantId  = c.get("tenantId");
+  const userId    = c.get("userId");
+  const companyId = c.req.query("company_id")?.trim();
+
+  if (!companyId) return c.json({ error: "El parámetro company_id es requerido." }, 400);
+
+  const ffService = new FeatureFlagsService(c.env);
+  const flags = await ffService.getFlags(tenantId);
+  if (!flags["cfe_enabled"]) {
+    return c.json({ error: "La emisión de CFEs no está habilitada." }, 503);
+  }
+
+  const company = await c.env.DB.prepare(
+    "SELECT id FROM companies WHERE id = ? AND user_id = ?"
+  ).bind(companyId, userId).first<{ id: string }>();
+  if (!company) return c.json({ error: "Empresa no encontrada." }, 404);
+
+  const caes = await c.env.DB.prepare(
+    `SELECT id, tipo_cfe, serie, rango_desde, rango_hasta, ultimo_nro_usado, fecha_vencimiento
+     FROM cfe_caes WHERE company_id = ?
+     ORDER BY tipo_cfe ASC, serie ASC`
+  ).bind(company.id).all<{
+    id: string; tipo_cfe: number; serie: string; rango_desde: number; rango_hasta: number;
+    ultimo_nro_usado: number; fecha_vencimiento: string | null;
+  }>();
+
+  return c.json({ caes: caes.results });
+});
+
 // GET /api/cfe/documents  — list CFEs for the authenticated user
 // Query: company_id (required), tipo_cfe?, estado?, page?, limit?
 app.get("/api/cfe/documents", requireAuth, async (c) => {
@@ -1778,7 +1811,7 @@ app.get("/api/cfe/documents", requireAuth, async (c) => {
   const where = conditions.join(" AND ");
   const rows = await c.env.DB.prepare(
     `SELECT id, tipo_cfe, numero, serie, fecha_emision, rut_receptor, razon_receptor,
-            concepto, subtotal, iva_tasa, monto_iva, total, estado, cae_numero, created_at
+            concepto, subtotal, iva_tasa, monto_iva, total, estado, cae_numero, cfe_xml_r2_key, created_at
      FROM cfe_documents
      WHERE ${where}
      ORDER BY fecha_emision DESC, created_at DESC
@@ -1787,11 +1820,12 @@ app.get("/api/cfe/documents", requireAuth, async (c) => {
     id: string; tipo_cfe: number; numero: number | null; serie: string | null;
     fecha_emision: string; rut_receptor: string | null; razon_receptor: string | null;
     concepto: string; subtotal: number; iva_tasa: string; monto_iva: number; total: number;
-    estado: string; cae_numero: string | null; created_at: number;
+    estado: string; cae_numero: string | null; cfe_xml_r2_key: string | null; created_at: number;
   }>();
 
-  const hasMore = rows.results.length > limit;
-  const items   = hasMore ? rows.results.slice(0, limit) : rows.results;
+  const hasMore  = rows.results.length > limit;
+  const rawItems = hasMore ? rows.results.slice(0, limit) : rows.results;
+  const items    = rawItems.map(({ cfe_xml_r2_key, ...rest }) => ({ ...rest, has_xml: cfe_xml_r2_key !== null }));
 
   return c.json({ documents: items, page, limit, hasMore });
 });
@@ -1853,10 +1887,11 @@ app.get("/api/cfe/documents/:id/xml", requireAuth, async (c) => {
   if (!object) return c.json({ error: "Archivo XML no encontrado en almacenamiento." }, 404);
 
   const filename = `CFE_${TIPOS_CFE_LABELS[doc.tipo_cfe] ?? doc.tipo_cfe}_${doc.serie ?? ""}${doc.numero ?? id}.xml`;
+  const asciiFilename = filename.replace(/[^\x20-\x7E]/g, "_");
   return new Response(object.body, {
     headers: {
       "Content-Type":        "application/xml",
-      "Content-Disposition": `attachment; filename="${encodeURIComponent(filename)}"`,
+      "Content-Disposition": `attachment; filename="${asciiFilename}"; filename*=UTF-8''${encodeURIComponent(filename)}`,
       "Cache-Control":       "private, no-cache",
     },
   });
@@ -2156,7 +2191,8 @@ app.post("/api/cfe/generate-iva-book", requireAuth, async (c) => {
 
   // Query all non-annulled CFEs for the month
   const isoStart = `${year}-${String(month).padStart(2, "0")}-01`;
-  const isoEnd   = new Date(year, month, 0).toISOString().slice(0, 10); // last day of month
+  const lastDay  = new Date(year, month, 0).getDate();
+  const isoEnd   = `${year}-${String(month).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
 
   const cfes = await c.env.DB.prepare(
     `SELECT tipo_cfe, numero, serie, fecha_emision, rut_receptor, razon_receptor,
@@ -2191,25 +2227,32 @@ app.post("/api/cfe/generate-iva-book", requireAuth, async (c) => {
   const MONTH_NAMES = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
   const label = `${MONTH_NAMES[month - 1]} ${year}`;
 
+  // Escape a value for CSV: prevent formula injection and quote fields with special chars
+  const csvField = (value: string): string => {
+    if (/^[=+\-@\t\r]/.test(value)) value = "'" + value;
+    if (/[,"\n\r]/.test(value)) return '"' + value.replace(/"/g, '""') + '"';
+    return value;
+  };
+
   // Build CSV content
   const lines: string[] = [
-    `Libro IVA Ventas — ${company.razon_social} (RUT: ${company.rut}) — ${label}`,
+    csvField(`Libro IVA Ventas — ${company.razon_social} (RUT: ${company.rut}) — ${label}`),
     "",
     "Fecha,Tipo CFE,Número,Receptor RUT,Receptor,Concepto,Subtotal,Tasa IVA,IVA,Total,Estado",
   ];
   for (const cfe of cfes.results) {
     lines.push([
-      cfe.fecha_emision,
-      TIPOS_CFE_LABELS[cfe.tipo_cfe] ?? cfe.tipo_cfe,
-      `${cfe.serie ?? ""}${cfe.numero ?? ""}`,
-      cfe.rut_receptor ?? "",
-      cfe.razon_receptor ?? "Consumidor Final",
-      cfe.concepto,
-      cfe.subtotal.toFixed(2),
-      cfe.iva_tasa === "exento" ? "Exento" : `${cfe.iva_tasa}%`,
-      cfe.monto_iva.toFixed(2),
-      cfe.total.toFixed(2),
-      cfe.estado,
+      csvField(cfe.fecha_emision),
+      csvField(TIPOS_CFE_LABELS[cfe.tipo_cfe] ?? String(cfe.tipo_cfe)),
+      csvField(`${cfe.serie ?? ""}${cfe.numero ?? ""}`),
+      csvField(cfe.rut_receptor ?? ""),
+      csvField(cfe.razon_receptor ?? "Consumidor Final"),
+      csvField(cfe.concepto),
+      csvField(cfe.subtotal.toFixed(2)),
+      csvField(cfe.iva_tasa === "exento" ? "Exento" : `${cfe.iva_tasa}%`),
+      csvField(cfe.monto_iva.toFixed(2)),
+      csvField(cfe.total.toFixed(2)),
+      csvField(cfe.estado),
     ].join(","));
   }
 
@@ -2217,11 +2260,17 @@ app.post("/api/cfe/generate-iva-book", requireAuth, async (c) => {
   lines.push("RESUMEN POR TASA:");
   for (const [tasa, totalesTasa] of Object.entries(totales)) {
     const tasaLabel = tasa === "exento" ? "Exento" : `IVA ${tasa}%`;
-    lines.push(`${tasaLabel},Cantidad: ${totalesTasa.cantidad},Base: ${totalesTasa.base.toFixed(2)},IVA: ${totalesTasa.iva.toFixed(2)},Total: ${totalesTasa.total.toFixed(2)}`);
+    lines.push([
+      csvField(tasaLabel),
+      csvField(`Cantidad: ${totalesTasa.cantidad}`),
+      csvField(`Base: ${totalesTasa.base.toFixed(2)}`),
+      csvField(`IVA: ${totalesTasa.iva.toFixed(2)}`),
+      csvField(`Total: ${totalesTasa.total.toFixed(2)}`),
+    ].join(","));
   }
 
   const grandTotal = cfes.results.reduce((s, c) => s + c.total, 0);
-  lines.push(`TOTAL GENERAL,${cfes.results.length} CFEs,,${grandTotal.toFixed(2)}`);
+  lines.push(["TOTAL GENERAL", csvField(`${cfes.results.length} CFEs`), "", csvField(grandTotal.toFixed(2))].join(","));
 
   const csvContent = lines.join("\n");
 
