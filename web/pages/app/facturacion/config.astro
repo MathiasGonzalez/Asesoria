@@ -1,0 +1,328 @@
+---
+import AppLayout from "../../../layouts/AppLayout.astro";
+---
+
+<AppLayout title="Configurar CFE">
+  <!-- Header -->
+  <div class="flex items-center gap-3">
+    <a href="/app/facturacion" class="p-2 rounded-xl transition-colors"
+      style="color: #6b7280;"
+      onmouseover="this.style.background='rgba(0,0,0,0.05)'" onmouseout="this.style.background='transparent'">
+      <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" />
+      </svg>
+    </a>
+    <div>
+      <h1 class="text-2xl font-bold tracking-tight" style="color: #0f1117;">Configurar CFE</h1>
+      <p class="text-sm" style="color: #6b7280;">Ambiente, serie y rangos CAE por empresa</p>
+    </div>
+  </div>
+
+  <!-- Alert -->
+  <div id="alert" class="hidden text-sm rounded-xl px-4 py-3"></div>
+
+  <!-- Company selector -->
+  <div class="rounded-2xl p-5 flex flex-col gap-4" style="background: white; border: 1px solid rgba(0,0,0,0.07);">
+    <h2 class="text-sm font-semibold" style="color: #374151;">Empresa</h2>
+    <select id="company-id" class="text-sm rounded-xl px-3 py-2.5 border w-full"
+      style="border-color: rgba(0,0,0,0.2); color: #374151;">
+      <option value="">Cargando empresas...</option>
+    </select>
+  </div>
+
+  <!-- CFE Config form -->
+  <div id="config-section" class="hidden rounded-2xl p-5 flex flex-col gap-5" style="background: white; border: 1px solid rgba(0,0,0,0.07);">
+    <h2 class="text-sm font-semibold" style="color: #374151;">Configuración de emisión</h2>
+
+    <form id="config-form" class="flex flex-col gap-4">
+      <div class="grid sm:grid-cols-3 gap-4">
+        <div class="flex flex-col gap-1">
+          <label for="ambiente" class="text-xs font-medium" style="color: #374151;">Ambiente DGI</label>
+          <select id="ambiente" class="text-sm rounded-xl px-3 py-2.5 border w-full"
+            style="border-color: rgba(0,0,0,0.2); color: #374151;">
+            <option value="homologacion">Homologación (prueba)</option>
+            <option value="produccion">Producción</option>
+          </select>
+          <p class="text-xs" style="color: #9ca3af;">Usá homologación para pruebas antes de emitir ante DGI real.</p>
+        </div>
+        <div class="flex flex-col gap-1">
+          <label for="serie" class="text-xs font-medium" style="color: #374151;">Serie</label>
+          <input type="text" id="serie" value="A" maxlength="3"
+            class="text-sm rounded-xl px-3 py-2.5 border w-full"
+            style="border-color: rgba(0,0,0,0.2); color: #374151;" />
+        </div>
+        <div class="flex flex-col gap-1">
+          <label for="serie-inicio" class="text-xs font-medium" style="color: #374151;">Serie inicio (nro.)</label>
+          <input type="number" id="serie-inicio" value="1" min="1"
+            class="text-sm rounded-xl px-3 py-2.5 border w-full"
+            style="border-color: rgba(0,0,0,0.2); color: #374151;" />
+        </div>
+      </div>
+      <button type="submit" id="config-save"
+        class="self-start text-sm font-medium rounded-xl px-5 py-2.5 transition-all"
+        style="background: #4f46e5; color: white; box-shadow: 0 2px 8px rgba(79,70,229,0.25);">
+        Guardar configuración
+      </button>
+    </form>
+
+    <!-- CAE section -->
+    <div class="border-t pt-5 flex flex-col gap-4" style="border-color: rgba(0,0,0,0.07);">
+      <div class="flex items-center justify-between">
+        <h2 class="text-sm font-semibold" style="color: #374151;">Rangos CAE</h2>
+        <button id="btn-add-cae" class="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-xl transition-colors"
+          style="background: rgba(79,70,229,0.08); color: #4f46e5;"
+          onmouseover="this.style.background='rgba(79,70,229,0.14)'" onmouseout="this.style.background='rgba(79,70,229,0.08)'">
+          <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+          </svg>
+          Agregar rango
+        </button>
+      </div>
+      <p class="text-xs" style="color: #6b7280;">
+        Los CAEs (Constancias de Autorización de Emisión) son asignados por DGI. Registrá los rangos obtenidos para que el sistema pueda emitir CFEs sin interrupciones.
+      </p>
+
+      <!-- CAE list -->
+      <div id="cae-list" class="flex flex-col gap-2"></div>
+
+      <!-- Add CAE form (hidden by default) -->
+      <div id="cae-form-wrap" class="hidden rounded-xl p-4 flex flex-col gap-3"
+        style="background: rgba(79,70,229,0.04); border: 1px solid rgba(79,70,229,0.12);">
+        <h3 class="text-xs font-semibold" style="color: #374151;">Nuevo rango CAE</h3>
+        <div class="grid sm:grid-cols-2 gap-3">
+          <div class="flex flex-col gap-1">
+            <label class="text-xs font-medium" style="color: #374151;">Tipo CFE</label>
+            <select id="cae-tipo" class="text-sm rounded-xl px-3 py-2.5 border w-full"
+              style="border-color: rgba(0,0,0,0.2); color: #374151;">
+              <option value="101">101 — e-Ticket</option>
+              <option value="111">111 — e-Factura</option>
+              <option value="121">121 — e-Factura Exportación</option>
+              <option value="151">151 — e-Resguardo</option>
+              <option value="181">181 — e-Remito</option>
+              <option value="102">102 — Nota Crédito</option>
+              <option value="112">112 — Nota Crédito e-Ticket</option>
+            </select>
+          </div>
+          <div class="flex flex-col gap-1">
+            <label class="text-xs font-medium" style="color: #374151;">Serie</label>
+            <input type="text" id="cae-serie" value="A" maxlength="3"
+              class="text-sm rounded-xl px-3 py-2.5 border w-full"
+              style="border-color: rgba(0,0,0,0.2); color: #374151;" />
+          </div>
+          <div class="flex flex-col gap-1">
+            <label class="text-xs font-medium" style="color: #374151;">Desde</label>
+            <input type="number" id="cae-desde" min="1" placeholder="1"
+              class="text-sm rounded-xl px-3 py-2.5 border w-full"
+              style="border-color: rgba(0,0,0,0.2); color: #374151;" />
+          </div>
+          <div class="flex flex-col gap-1">
+            <label class="text-xs font-medium" style="color: #374151;">Hasta</label>
+            <input type="number" id="cae-hasta" min="1" placeholder="1000"
+              class="text-sm rounded-xl px-3 py-2.5 border w-full"
+              style="border-color: rgba(0,0,0,0.2); color: #374151;" />
+          </div>
+          <div class="flex flex-col gap-1">
+            <label class="text-xs font-medium" style="color: #374151;">Vencimiento</label>
+            <input type="date" id="cae-vencimiento"
+              class="text-sm rounded-xl px-3 py-2.5 border w-full"
+              style="border-color: rgba(0,0,0,0.2); color: #374151;" />
+          </div>
+        </div>
+        <div id="cae-alert" class="hidden text-xs rounded-lg px-3 py-2"
+          style="background: rgba(239,68,68,0.07); border: 1px solid rgba(239,68,68,0.25); color: #b91c1c;"></div>
+        <div class="flex gap-2">
+          <button type="button" id="cae-save" class="text-sm font-medium rounded-xl px-4 py-2 transition-all"
+            style="background: #4f46e5; color: white;">
+            Guardar rango
+          </button>
+          <button type="button" id="cae-cancel" class="text-sm font-medium rounded-xl px-4 py-2 transition-all"
+            style="background: rgba(0,0,0,0.05); color: #6b7280;">
+            Cancelar
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- No companies -->
+  <div id="no-companies" class="hidden text-center py-12 flex flex-col items-center gap-3">
+    <p class="text-sm" style="color: #6b7280;">No tenés empresas registradas.</p>
+    <a href="/app/empresas" class="text-sm font-medium" style="color: #4f46e5;">
+      Agregar empresa →
+    </a>
+  </div>
+</AppLayout>
+
+<script>
+  const session = localStorage.getItem("adviser_session");
+  const auth    = () => ({ Authorization: "Bearer " + session });
+
+  const TIPO_LABELS: Record<string, string> = {
+    "101": "e-Ticket", "111": "e-Factura", "112": "N. Crédito e-Ticket",
+    "121": "e-Factura Exportación", "151": "e-Resguardo", "181": "e-Remito", "102": "N. Crédito e-Factura",
+  };
+
+  let currentCompanyId = "";
+
+  function showAlert(msg: string, isError = true) {
+    const el = document.getElementById("alert")!;
+    el.textContent = msg;
+    el.style.cssText = isError
+      ? "display:block; background:rgba(239,68,68,0.08); border:1px solid rgba(239,68,68,0.25); color:#b91c1c; border-radius:0.75rem; padding:0.75rem 1rem;"
+      : "display:block; background:rgba(16,185,129,0.08); border:1px solid rgba(16,185,129,0.25); color:#065f46; border-radius:0.75rem; padding:0.75rem 1rem;";
+  }
+
+  async function loadConfig(companyId: string) {
+    currentCompanyId = companyId;
+    const res  = await fetch("/api/cfe/config?company_id=" + companyId, { headers: auth() });
+    const data = await res.json<{
+      config?: { ambiente: string; serie: string; serie_inicio: number } | null;
+      error?: string;
+    }>();
+
+    document.getElementById("config-section")!.style.display = "flex";
+    document.getElementById("config-section")!.style.flexDirection = "column";
+
+    if (data.config) {
+      (document.getElementById("ambiente")     as HTMLSelectElement).value = data.config.ambiente;
+      (document.getElementById("serie")        as HTMLInputElement).value  = data.config.serie;
+      (document.getElementById("serie-inicio") as HTMLInputElement).value  = String(data.config.serie_inicio);
+    }
+
+    loadCaes(companyId);
+  }
+
+  async function loadCaes(companyId: string) {
+    const list = document.getElementById("cae-list")!;
+    list.innerHTML = '<p class="text-xs" style="color:#6b7280;">Cargando...</p>';
+
+    const res = await fetch("/api/cfe/documents?company_id=" + companyId + "&limit=1", { headers: auth() });
+    // We use the documents endpoint just to confirm the company is accessible.
+    // CAEs are loaded from a dedicated endpoint below.
+    // For now we render a placeholder if no endpoint exists.
+    list.innerHTML = "";
+
+    // Placeholder message — real CAE list would come from GET /api/cfe/caes endpoint (future)
+    const p = document.createElement("p");
+    p.className = "text-xs";
+    p.style.color = "#9ca3af";
+    p.textContent = "Los rangos CAE registrados aparecerán aquí.";
+    list.appendChild(p);
+  }
+
+  async function loadCompanies() {
+    const res  = await fetch("/api/companies", { headers: auth() });
+    const data = await res.json<{ companies?: { id: string; razon_social: string }[] }>();
+    const cos  = data.companies ?? [];
+    const sel  = document.getElementById("company-id") as HTMLSelectElement;
+
+    if (cos.length === 0) {
+      document.getElementById("no-companies")!.style.display = "flex";
+      sel.closest(".rounded-2xl")!.parentElement!.style.display = "none";
+      return;
+    }
+
+    sel.innerHTML = '<option value="">Seleccioná una empresa</option>';
+    cos.forEach(co => {
+      const o = document.createElement("option");
+      o.value = co.id; o.textContent = co.razon_social;
+      sel.appendChild(o);
+    });
+
+    if (cos.length === 1) {
+      sel.value = cos[0].id;
+      loadConfig(cos[0].id);
+    }
+  }
+
+  document.getElementById("company-id")!.addEventListener("change", (e) => {
+    const id = (e.target as HTMLSelectElement).value;
+    if (id) loadConfig(id);
+    else document.getElementById("config-section")!.style.display = "none";
+  });
+
+  // Save config
+  document.getElementById("config-form")!.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const btn = document.getElementById("config-save") as HTMLButtonElement;
+
+    if (!currentCompanyId) { showAlert("Seleccioná una empresa."); return; }
+
+    btn.textContent = "Guardando...";
+    btn.disabled    = true;
+
+    const res  = await fetch("/api/cfe/config", {
+      method: "POST",
+      headers: { ...auth(), "Content-Type": "application/json" },
+      body: JSON.stringify({
+        company_id:  currentCompanyId,
+        ambiente:    (document.getElementById("ambiente")     as HTMLSelectElement).value,
+        serie:       (document.getElementById("serie")        as HTMLInputElement).value,
+        serie_inicio: parseInt((document.getElementById("serie-inicio") as HTMLInputElement).value),
+      }),
+    });
+    const data = await res.json<{ ok?: boolean; error?: string }>();
+
+    btn.textContent = "Guardar configuración";
+    btn.disabled    = false;
+
+    if (!res.ok) { showAlert(data.error ?? "Error al guardar."); return; }
+    showAlert("Configuración guardada correctamente.", false);
+  });
+
+  // CAE form
+  document.getElementById("btn-add-cae")!.addEventListener("click", () => {
+    document.getElementById("cae-form-wrap")!.style.display = "flex";
+    document.getElementById("cae-form-wrap")!.style.flexDirection = "column";
+    document.getElementById("cae-alert")!.style.display = "none";
+  });
+  document.getElementById("cae-cancel")!.addEventListener("click", () => {
+    document.getElementById("cae-form-wrap")!.style.display = "none";
+  });
+
+  document.getElementById("cae-save")!.addEventListener("click", async () => {
+    const alertEl = document.getElementById("cae-alert")!;
+    alertEl.style.display = "none";
+
+    if (!currentCompanyId) { alertEl.textContent = "Seleccioná una empresa."; alertEl.style.display = "block"; return; }
+
+    const tipo     = parseInt((document.getElementById("cae-tipo")       as HTMLSelectElement).value);
+    const serie    = (document.getElementById("cae-serie")               as HTMLInputElement).value.trim().toUpperCase();
+    const desde    = parseInt((document.getElementById("cae-desde")      as HTMLInputElement).value);
+    const hasta    = parseInt((document.getElementById("cae-hasta")      as HTMLInputElement).value);
+    const vencim   = (document.getElementById("cae-vencimiento")         as HTMLInputElement).value.trim();
+
+    if (!serie)                    { alertEl.textContent = "La serie es requerida.";                   alertEl.style.display = "block"; return; }
+    if (isNaN(desde) || desde < 1) { alertEl.textContent = "El rango inicial debe ser mayor a 0.";    alertEl.style.display = "block"; return; }
+    if (isNaN(hasta) || hasta < desde) { alertEl.textContent = "El rango final debe ser ≥ al inicial."; alertEl.style.display = "block"; return; }
+
+    const saveBtn = document.getElementById("cae-save") as HTMLButtonElement;
+    saveBtn.textContent = "Guardando...";
+    saveBtn.disabled    = true;
+
+    const res  = await fetch("/api/cfe/caes", {
+      method: "POST",
+      headers: { ...auth(), "Content-Type": "application/json" },
+      body: JSON.stringify({
+        company_id:        currentCompanyId,
+        tipo_cfe:          tipo,
+        serie,
+        rango_desde:       desde,
+        rango_hasta:       hasta,
+        fecha_vencimiento: vencim || undefined,
+      }),
+    });
+    const data = await res.json<{ ok?: boolean; error?: string }>();
+
+    saveBtn.textContent = "Guardar rango";
+    saveBtn.disabled    = false;
+
+    if (!res.ok) { alertEl.textContent = data.error ?? "Error al guardar el rango."; alertEl.style.display = "block"; return; }
+
+    document.getElementById("cae-form-wrap")!.style.display = "none";
+    showAlert(`Rango CAE ${serie}${desde}-${hasta} para tipo ${TIPO_LABELS[String(tipo)] ?? tipo} guardado.`, false);
+    loadCaes(currentCompanyId);
+  });
+
+  loadCompanies();
+</script>

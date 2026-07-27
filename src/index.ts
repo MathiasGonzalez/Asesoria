@@ -86,6 +86,14 @@ interface Bindings {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   BROWSER?: any;
   /**
+   * UruFactura Container — Cloudflare Container (Durable Object) that handles
+   * XAdES-BES XML signing and DGI SOAP communication for CFE emission.
+   * Deploy from MathiasGonzalez/UruFactura and add the binding in wrangler.jsonc.
+   * Optional so local dev and deployments without the container still work.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  URUFACTURA_CONTAINER?: any;
+  /**
    * 64-character lowercase hex string (32 bytes) used as the AES-256-GCM key
    * for encrypting DGI/BPS portal session cookies at rest in D1.
    * Generate with: `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`
@@ -1553,8 +1561,734 @@ app.delete("/api/portal/:portal/disconnect", requireAuth, async (c) => {
 });
 
 // ---------------------------------------------------------------------------
-// Serve static frontend assets
+// CFE / e-Factura routes
+// Gated behind the `cfe_enabled` feature flag.
+// All routes expect `company_id` to belong to the authenticated user.
+// Actual XML signing and DGI communication is proxied to the UruFactura
+// Container (MathiasGonzalez/UruFactura). If the container is not configured,
+// routes that require it return 503 with a descriptive error.
 // ---------------------------------------------------------------------------
+
+const VALID_TIPOS_CFE = [101, 111, 112, 121, 151, 181, 102] as const;
+type TipoCfe = typeof VALID_TIPOS_CFE[number];
+
+const TIPOS_CFE_LABELS: Record<number, string> = {
+  101: "e-Ticket",
+  111: "e-Factura",
+  112: "Nota Crédito e-Ticket",
+  121: "e-Factura Exportación",
+  151: "e-Resguardo",
+  181: "e-Remito",
+  102: "Nota Crédito e-Factura",
+};
+
+const VALID_IVA_TASAS = ["22", "10", "0", "exento"] as const;
+type IvaTasa = typeof VALID_IVA_TASAS[number];
+
+const VALID_AMBIENTES = ["homologacion", "produccion"] as const;
+
+function isValidTipoCfe(v: unknown): v is TipoCfe {
+  return typeof v === "number" && (VALID_TIPOS_CFE as readonly number[]).includes(v);
+}
+
+/** Validate 12-digit Uruguay RUT (accepts separators). Returns normalized string or null. */
+function normalizeRut(raw: string): string | null {
+  const rut = raw.trim().replace(/[\.\-\s]/g, "");
+  return /^\d{12}$/.test(rut) ? rut : null;
+}
+
+/**
+ * Estimate IVA amount from subtotal and tasa.
+ * Uruguay: IVA is on top of subtotal (subtotal is ex-IVA).
+ */
+function calcIva(subtotal: number, tasa: IvaTasa): number {
+  if (tasa === "exento" || tasa === "0") return 0;
+  return Math.round(subtotal * (parseInt(tasa) / 100) * 100) / 100;
+}
+
+// GET /api/cfe/config?company_id=  — retrieve CFE config for a company
+app.get("/api/cfe/config", requireAuth, async (c) => {
+  const tenantId  = c.get("tenantId");
+  const userId    = c.get("userId");
+  const companyId = c.req.query("company_id")?.trim();
+
+  if (!companyId) return c.json({ error: "El parámetro company_id es requerido." }, 400);
+
+  const ffService = new FeatureFlagsService(c.env);
+  const flags = await ffService.getFlags(tenantId);
+  if (!flags["cfe_enabled"]) {
+    return c.json({ error: "La emisión de CFEs no está habilitada." }, 503);
+  }
+
+  const company = await c.env.DB.prepare(
+    "SELECT id FROM companies WHERE id = ? AND user_id = ?"
+  ).bind(companyId, userId).first<{ id: string }>();
+  if (!company) return c.json({ error: "Empresa no encontrada." }, 404);
+
+  const config = await c.env.DB.prepare(
+    `SELECT id, ambiente, serie, serie_inicio, created_at, updated_at
+     FROM cfe_configs WHERE company_id = ? AND user_id = ?`
+  ).bind(companyId, userId).first<{
+    id: string; ambiente: string; serie: string;
+    serie_inicio: number; created_at: number; updated_at: number;
+  }>();
+
+  return c.json({ config: config ?? null });
+});
+
+// POST /api/cfe/config  — upsert CFE config for a company
+// Body: { company_id, ambiente?, serie?, serie_inicio? }
+app.post("/api/cfe/config", requireAuth, async (c) => {
+  const tenantId = c.get("tenantId");
+  const userId   = c.get("userId");
+
+  const ffService = new FeatureFlagsService(c.env);
+  const flags = await ffService.getFlags(tenantId);
+  if (!flags["cfe_enabled"]) {
+    return c.json({ error: "La emisión de CFEs no está habilitada." }, 503);
+  }
+
+  const body = await c.req.json<{
+    company_id?: string;
+    ambiente?: string;
+    serie?: string;
+    serie_inicio?: number;
+  }>();
+
+  if (!body.company_id?.trim()) {
+    return c.json({ error: "company_id es requerido." }, 400);
+  }
+
+  const company = await c.env.DB.prepare(
+    "SELECT id FROM companies WHERE id = ? AND user_id = ?"
+  ).bind(body.company_id.trim(), userId).first<{ id: string }>();
+  if (!company) return c.json({ error: "Empresa no encontrada." }, 404);
+
+  const ambiente = VALID_AMBIENTES.includes(body.ambiente as typeof VALID_AMBIENTES[number])
+    ? body.ambiente! : "homologacion";
+  const serie = body.serie?.trim().toUpperCase() || "A";
+  const serieInicio = Math.max(1, Math.floor(Number(body.serie_inicio) || 1));
+
+  const id = crypto.randomUUID();
+  await c.env.DB.prepare(
+    `INSERT INTO cfe_configs (id, user_id, tenant_id, company_id, ambiente, serie, serie_inicio)
+     VALUES (?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT(company_id) DO UPDATE SET
+       ambiente     = excluded.ambiente,
+       serie        = excluded.serie,
+       serie_inicio = excluded.serie_inicio,
+       updated_at   = strftime('%s', 'now')`
+  ).bind(id, userId, tenantId, body.company_id.trim(), ambiente, serie, serieInicio).run();
+
+  return c.json({ ok: true, config: { ambiente, serie, serie_inicio: serieInicio } });
+});
+
+// POST /api/cfe/caes  — register CAE ranges received from DGI
+// Body: { company_id, tipo_cfe, serie, rango_desde, rango_hasta, fecha_vencimiento? }
+app.post("/api/cfe/caes", requireAuth, async (c) => {
+  const tenantId = c.get("tenantId");
+  const userId   = c.get("userId");
+
+  const ffService = new FeatureFlagsService(c.env);
+  const flags = await ffService.getFlags(tenantId);
+  if (!flags["cfe_enabled"]) {
+    return c.json({ error: "La emisión de CFEs no está habilitada." }, 503);
+  }
+
+  const body = await c.req.json<{
+    company_id?: string;
+    tipo_cfe?: number;
+    serie?: string;
+    rango_desde?: number;
+    rango_hasta?: number;
+    fecha_vencimiento?: string;
+  }>();
+
+  if (!body.company_id?.trim()) return c.json({ error: "company_id es requerido." }, 400);
+  if (!isValidTipoCfe(body.tipo_cfe)) {
+    return c.json({ error: `tipo_cfe inválido. Valores válidos: ${VALID_TIPOS_CFE.join(", ")}.` }, 400);
+  }
+  if (!body.serie?.trim()) return c.json({ error: "serie es requerida." }, 400);
+  if (!Number.isInteger(body.rango_desde) || !Number.isInteger(body.rango_hasta) ||
+      body.rango_desde! < 1 || body.rango_hasta! < body.rango_desde!) {
+    return c.json({ error: "rango_desde y rango_hasta deben ser enteros positivos (desde ≤ hasta)." }, 400);
+  }
+
+  const company = await c.env.DB.prepare(
+    "SELECT id FROM companies WHERE id = ? AND user_id = ?"
+  ).bind(body.company_id.trim(), userId).first<{ id: string }>();
+  if (!company) return c.json({ error: "Empresa no encontrada." }, 404);
+
+  const id = crypto.randomUUID();
+  await c.env.DB.prepare(
+    `INSERT INTO cfe_caes (id, company_id, tipo_cfe, serie, rango_desde, rango_hasta, fecha_vencimiento)
+     VALUES (?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT(company_id, tipo_cfe, serie) DO UPDATE SET
+       rango_desde       = excluded.rango_desde,
+       rango_hasta       = excluded.rango_hasta,
+       ultimo_nro_usado  = 0,
+       fecha_vencimiento = excluded.fecha_vencimiento`
+  ).bind(
+    id, body.company_id.trim(), body.tipo_cfe!, body.serie.trim(),
+    body.rango_desde!, body.rango_hasta!,
+    body.fecha_vencimiento?.trim() || null
+  ).run();
+
+  return c.json({ ok: true });
+});
+
+// GET /api/cfe/documents  — list CFEs for the authenticated user
+// Query: company_id (required), tipo_cfe?, estado?, page?, limit?
+app.get("/api/cfe/documents", requireAuth, async (c) => {
+  const tenantId  = c.get("tenantId");
+  const userId    = c.get("userId");
+  const companyId = c.req.query("company_id")?.trim();
+
+  if (!companyId) return c.json({ error: "El parámetro company_id es requerido." }, 400);
+
+  const ffService = new FeatureFlagsService(c.env);
+  const flags = await ffService.getFlags(tenantId);
+  if (!flags["cfe_enabled"]) {
+    return c.json({ error: "La emisión de CFEs no está habilitada." }, 503);
+  }
+
+  const company = await c.env.DB.prepare(
+    "SELECT id FROM companies WHERE id = ? AND user_id = ?"
+  ).bind(companyId, userId).first<{ id: string }>();
+  if (!company) return c.json({ error: "Empresa no encontrada." }, 404);
+
+  const tipoCfeRaw = parseInt(c.req.query("tipo_cfe") ?? "0");
+  const estado     = c.req.query("estado")?.trim() || null;
+  const page       = Math.max(1, parseInt(c.req.query("page")  ?? "1",  10));
+  const limit      = Math.min(50, Math.max(1, parseInt(c.req.query("limit") ?? "20", 10)));
+  const offset     = (page - 1) * limit;
+
+  const conditions: string[] = ["company_id = ?", "user_id = ?"];
+  const params: (string | number)[] = [companyId, userId];
+
+  if (isValidTipoCfe(tipoCfeRaw)) {
+    conditions.push("tipo_cfe = ?");
+    params.push(tipoCfeRaw);
+  }
+  if (estado) {
+    conditions.push("estado = ?");
+    params.push(estado);
+  }
+
+  const where = conditions.join(" AND ");
+  const rows = await c.env.DB.prepare(
+    `SELECT id, tipo_cfe, numero, serie, fecha_emision, rut_receptor, razon_receptor,
+            concepto, subtotal, iva_tasa, monto_iva, total, estado, cae_numero, created_at
+     FROM cfe_documents
+     WHERE ${where}
+     ORDER BY fecha_emision DESC, created_at DESC
+     LIMIT ? OFFSET ?`
+  ).bind(...params, limit + 1, offset).all<{
+    id: string; tipo_cfe: number; numero: number | null; serie: string | null;
+    fecha_emision: string; rut_receptor: string | null; razon_receptor: string | null;
+    concepto: string; subtotal: number; iva_tasa: string; monto_iva: number; total: number;
+    estado: string; cae_numero: string | null; created_at: number;
+  }>();
+
+  const hasMore = rows.results.length > limit;
+  const items   = hasMore ? rows.results.slice(0, limit) : rows.results;
+
+  return c.json({ documents: items, page, limit, hasMore });
+});
+
+// GET /api/cfe/documents/:id  — get a single CFE
+app.get("/api/cfe/documents/:id", requireAuth, async (c) => {
+  const tenantId = c.get("tenantId");
+  const userId   = c.get("userId");
+  const id       = c.req.param("id");
+
+  const ffService = new FeatureFlagsService(c.env);
+  const flags = await ffService.getFlags(tenantId);
+  if (!flags["cfe_enabled"]) {
+    return c.json({ error: "La emisión de CFEs no está habilitada." }, 503);
+  }
+
+  const doc = await c.env.DB.prepare(
+    `SELECT id, tipo_cfe, numero, serie, fecha_emision, rut_receptor, razon_receptor,
+            concepto, subtotal, iva_tasa, monto_iva, total, estado,
+            cfe_xml_r2_key, cae_numero, periodo_id, created_at, updated_at
+     FROM cfe_documents WHERE id = ? AND user_id = ?`
+  ).bind(id, userId).first<{
+    id: string; tipo_cfe: number; numero: number | null; serie: string | null;
+    fecha_emision: string; rut_receptor: string | null; razon_receptor: string | null;
+    concepto: string; subtotal: number; iva_tasa: string; monto_iva: number; total: number;
+    estado: string; cfe_xml_r2_key: string | null; cae_numero: string | null;
+    periodo_id: string | null; created_at: number; updated_at: number;
+  }>();
+
+  if (!doc) return c.json({ error: "CFE no encontrado." }, 404);
+
+  return c.json({ document: { ...doc, has_xml: doc.cfe_xml_r2_key !== null } });
+});
+
+// GET /api/cfe/documents/:id/xml  — download the signed XML from R2
+app.get("/api/cfe/documents/:id/xml", requireAuth, async (c) => {
+  const tenantId = c.get("tenantId");
+  const userId   = c.get("userId");
+  const id       = c.req.param("id");
+
+  const ffService = new FeatureFlagsService(c.env);
+  const flags = await ffService.getFlags(tenantId);
+  if (!flags["cfe_enabled"]) {
+    return c.json({ error: "La emisión de CFEs no está habilitada." }, 503);
+  }
+
+  const doc = await c.env.DB.prepare(
+    "SELECT tipo_cfe, numero, serie, cfe_xml_r2_key FROM cfe_documents WHERE id = ? AND user_id = ?"
+  ).bind(id, userId).first<{
+    tipo_cfe: number; numero: number | null; serie: string | null; cfe_xml_r2_key: string | null;
+  }>();
+
+  if (!doc) return c.json({ error: "CFE no encontrado." }, 404);
+  if (!doc.cfe_xml_r2_key || !c.env.DOCUMENTS_BUCKET) {
+    return c.json({ error: "Este CFE no tiene XML almacenado." }, 404);
+  }
+
+  const object = await c.env.DOCUMENTS_BUCKET.get(doc.cfe_xml_r2_key);
+  if (!object) return c.json({ error: "Archivo XML no encontrado en almacenamiento." }, 404);
+
+  const filename = `CFE_${TIPOS_CFE_LABELS[doc.tipo_cfe] ?? doc.tipo_cfe}_${doc.serie ?? ""}${doc.numero ?? id}.xml`;
+  return new Response(object.body, {
+    headers: {
+      "Content-Type":        "application/xml",
+      "Content-Disposition": `attachment; filename="${encodeURIComponent(filename)}"`,
+      "Cache-Control":       "private, no-cache",
+    },
+  });
+});
+
+// POST /api/cfe/emit  — validate and emit a new CFE
+// Body: { company_id, tipo_cfe, rut_receptor, razon_receptor, concepto,
+//         subtotal, iva_tasa, fecha_emision? }
+app.post("/api/cfe/emit", requireAuth, async (c) => {
+  const tenantId = c.get("tenantId");
+  const userId   = c.get("userId");
+
+  const ffService = new FeatureFlagsService(c.env);
+  const flags = await ffService.getFlags(tenantId);
+  if (!flags["cfe_enabled"]) {
+    return c.json({ error: "La emisión de CFEs no está habilitada." }, 503);
+  }
+
+  const body = await c.req.json<{
+    company_id?: string;
+    tipo_cfe?: number;
+    rut_receptor?: string;
+    razon_receptor?: string;
+    concepto?: string;
+    subtotal?: number;
+    iva_tasa?: string;
+    fecha_emision?: string;
+  }>();
+
+  if (!body.company_id?.trim()) return c.json({ error: "company_id es requerido." }, 400);
+  if (!isValidTipoCfe(body.tipo_cfe)) {
+    return c.json({ error: `tipo_cfe inválido. Valores válidos: ${VALID_TIPOS_CFE.join(", ")}.` }, 400);
+  }
+  if (!body.concepto?.trim()) return c.json({ error: "concepto es requerido." }, 400);
+  if (typeof body.subtotal !== "number" || body.subtotal <= 0) {
+    return c.json({ error: "subtotal debe ser un número positivo." }, 400);
+  }
+  if (!VALID_IVA_TASAS.includes(body.iva_tasa as IvaTasa)) {
+    return c.json({ error: `iva_tasa inválida. Valores válidos: ${VALID_IVA_TASAS.join(", ")}.` }, 400);
+  }
+
+  // Validate receptor RUT (required for e-Factura 111/121; optional for e-Ticket 101)
+  let rutReceptor: string | null = null;
+  if (body.rut_receptor?.trim()) {
+    rutReceptor = normalizeRut(body.rut_receptor);
+    if (!rutReceptor) {
+      return c.json({ error: "El RUT del receptor debe tener 12 dígitos (ej: 210000010018)." }, 400);
+    }
+  } else if (body.tipo_cfe === 111 || body.tipo_cfe === 121) {
+    return c.json({ error: "El RUT del receptor es obligatorio para e-Factura (111) y e-Factura Exportación (121)." }, 400);
+  }
+
+  // Validate fecha_emision (not more than 72 h in the past)
+  const fechaEmision = body.fecha_emision?.trim() || new Date().toISOString().slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(fechaEmision)) {
+    return c.json({ error: "fecha_emision debe tener formato YYYY-MM-DD." }, 400);
+  }
+  const emisionTs = Date.parse(fechaEmision);
+  if (isNaN(emisionTs)) return c.json({ error: "fecha_emision inválida." }, 400);
+  const diffHours = (Date.now() - emisionTs) / 3_600_000;
+  if (diffHours > 72) {
+    return c.json({ error: "La fecha de emisión no puede ser mayor a 72 horas en el pasado." }, 400);
+  }
+
+  // Verify company ownership
+  const company = await c.env.DB.prepare(
+    "SELECT id, rut, razon_social FROM companies WHERE id = ? AND user_id = ?"
+  ).bind(body.company_id.trim(), userId).first<{ id: string; rut: string; razon_social: string }>();
+  if (!company) return c.json({ error: "Empresa no encontrada." }, 404);
+
+  // Load CFE config
+  const config = await c.env.DB.prepare(
+    "SELECT id, ambiente, serie FROM cfe_configs WHERE company_id = ? AND user_id = ?"
+  ).bind(company.id, userId).first<{ id: string; ambiente: string; serie: string }>();
+  if (!config) {
+    return c.json(
+      { error: "La empresa no tiene configuración CFE. Configurá el ambiente y la serie primero en /app/facturacion/config." },
+      422
+    );
+  }
+
+  // IVA coherence check
+  const ivaTasa = body.iva_tasa as IvaTasa;
+  const montoIva  = calcIva(body.subtotal, ivaTasa);
+  const total     = Math.round((body.subtotal + montoIva) * 100) / 100;
+
+  // Persist the CFE in draft state first
+  const docId = crypto.randomUUID();
+  await c.env.DB.prepare(
+    `INSERT INTO cfe_documents
+       (id, user_id, tenant_id, company_id, tipo_cfe, fecha_emision, rut_receptor,
+        razon_receptor, concepto, subtotal, iva_tasa, monto_iva, total, estado, serie)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'borrador', ?)`
+  ).bind(
+    docId, userId, tenantId, company.id, body.tipo_cfe!, fechaEmision,
+    rutReceptor,
+    body.razon_receptor?.trim() || null,
+    body.concepto.trim(),
+    body.subtotal, ivaTasa, montoIva, total,
+    config.serie
+  ).run();
+
+  // Attempt to send to UruFactura Container if configured
+  if (!c.env.URUFACTURA_CONTAINER) {
+    // Container not deployed — CFE saved as draft, return partial success
+    return c.json({
+      ok: true,
+      draft: true,
+      document: { id: docId, estado: "borrador", subtotal: body.subtotal, monto_iva: montoIva, total },
+      warning: "CFE guardado como borrador. Para emitir ante DGI, el container UruFactura debe estar desplegado y configurado. Ver features/e-factura-integration.tech.md.",
+    }, 202);
+  }
+
+  // Load CAEs for this company to pass to the container
+  const caes = await c.env.DB.prepare(
+    "SELECT tipo_cfe, serie, rango_desde, rango_hasta, ultimo_nro_usado, fecha_vencimiento FROM cfe_caes WHERE company_id = ?"
+  ).bind(company.id).all();
+
+  try {
+    const containerId = c.env.URUFACTURA_CONTAINER.idFromName(company.id);
+    const containerStub = c.env.URUFACTURA_CONTAINER.get(containerId);
+
+    const cfePayload = {
+      tipo: body.tipo_cfe,
+      fecha_emision: fechaEmision,
+      emisor: { rut: company.rut, razon_social: company.razon_social },
+      receptor: rutReceptor ? { rut: rutReceptor, razon_social: body.razon_receptor?.trim() || "" } : null,
+      concepto: body.concepto.trim(),
+      subtotal: body.subtotal,
+      iva_tasa: body.iva_tasa,
+      monto_iva: montoIva,
+      total,
+      ambiente: config.ambiente,
+      serie: config.serie,
+    };
+
+    const containerRes = await containerStub.fetch("http://internal/api/cfe/emit", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Caes-Json": JSON.stringify(caes.results),
+      },
+      body: JSON.stringify(cfePayload),
+    });
+
+    if (!containerRes.ok) {
+      const errBody = await containerRes.json().catch(() => ({})) as { error?: string };
+      return c.json({ error: errBody.error ?? "Error al emitir el CFE ante DGI." }, 502);
+    }
+
+    const result = await containerRes.json() as {
+      cae_numero?: string;
+      numero?: number;
+      xml_base64?: string;
+      ultimo_nro_usado?: number;
+    };
+
+    // Store signed XML in R2 if available
+    let xmlR2Key: string | null = null;
+    if (result.xml_base64 && c.env.DOCUMENTS_BUCKET) {
+      const xmlBytes = Uint8Array.from(atob(result.xml_base64), ch => ch.charCodeAt(0));
+      xmlR2Key = `cfe/${userId}/${company.id}/${docId}.xml`;
+      await c.env.DOCUMENTS_BUCKET.put(xmlR2Key, xmlBytes, {
+        httpMetadata: { contentType: "application/xml" },
+        customMetadata: { userId, companyId: company.id, docId },
+      });
+    }
+
+    // Update CAE last used number (non-blocking)
+    if (typeof result.ultimo_nro_usado === "number") {
+      c.executionCtx?.waitUntil(
+        c.env.DB.prepare(
+          "UPDATE cfe_caes SET ultimo_nro_usado = ? WHERE company_id = ? AND tipo_cfe = ? AND serie = ?"
+        ).bind(result.ultimo_nro_usado, company.id, body.tipo_cfe!, config.serie).run()
+          .catch((err: unknown) => console.error("cfe_caes update failed:", err))
+      );
+    }
+
+    // Mark CFE as enviado with the returned CAE and number
+    await c.env.DB.prepare(
+      `UPDATE cfe_documents SET
+         estado = 'enviado', cae_numero = ?, numero = ?, cfe_xml_r2_key = ?,
+         updated_at = strftime('%s', 'now')
+       WHERE id = ?`
+    ).bind(result.cae_numero ?? null, result.numero ?? null, xmlR2Key, docId).run();
+
+    return c.json({
+      ok: true,
+      document: {
+        id: docId,
+        estado: "enviado",
+        numero: result.numero,
+        cae_numero: result.cae_numero,
+        subtotal: body.subtotal,
+        monto_iva: montoIva,
+        total,
+        has_xml: xmlR2Key !== null,
+      },
+    }, 201);
+  } catch (err) {
+    console.error("UruFactura container error:", err);
+    // CFE remains as borrador — client can retry
+    return c.json({ error: "Error al contactar el servicio de emisión. El CFE fue guardado como borrador y puede reintentarse." }, 502);
+  }
+});
+
+// POST /api/cfe/documents/:id/annul  — request annulment of an emitted CFE
+app.post("/api/cfe/documents/:id/annul", requireAuth, async (c) => {
+  const tenantId = c.get("tenantId");
+  const userId   = c.get("userId");
+  const id       = c.req.param("id");
+
+  const ffService = new FeatureFlagsService(c.env);
+  const flags = await ffService.getFlags(tenantId);
+  if (!flags["cfe_enabled"]) {
+    return c.json({ error: "La emisión de CFEs no está habilitada." }, 503);
+  }
+
+  const doc = await c.env.DB.prepare(
+    "SELECT id, estado FROM cfe_documents WHERE id = ? AND user_id = ?"
+  ).bind(id, userId).first<{ id: string; estado: string }>();
+  if (!doc) return c.json({ error: "CFE no encontrado." }, 404);
+
+  if (doc.estado === "anulado") {
+    return c.json({ error: "El CFE ya se encuentra anulado." }, 409);
+  }
+  if (doc.estado === "borrador") {
+    return c.json({ error: "Un CFE en borrador no puede anularse (simplemente eliminalo)." }, 422);
+  }
+
+  await c.env.DB.prepare(
+    "UPDATE cfe_documents SET estado = 'anulado', updated_at = strftime('%s', 'now') WHERE id = ?"
+  ).bind(id).run();
+
+  return c.json({ ok: true, message: "CFE marcado como anulado." });
+});
+
+// DELETE /api/cfe/documents/:id  — delete a draft CFE
+app.delete("/api/cfe/documents/:id", requireAuth, async (c) => {
+  const tenantId = c.get("tenantId");
+  const userId   = c.get("userId");
+  const id       = c.req.param("id");
+
+  const ffService = new FeatureFlagsService(c.env);
+  const flags = await ffService.getFlags(tenantId);
+  if (!flags["cfe_enabled"]) {
+    return c.json({ error: "La emisión de CFEs no está habilitada." }, 503);
+  }
+
+  const doc = await c.env.DB.prepare(
+    "SELECT id, estado, cfe_xml_r2_key FROM cfe_documents WHERE id = ? AND user_id = ?"
+  ).bind(id, userId).first<{ id: string; estado: string; cfe_xml_r2_key: string | null }>();
+  if (!doc) return c.json({ error: "CFE no encontrado." }, 404);
+
+  if (doc.estado !== "borrador") {
+    return c.json({ error: "Solo se pueden eliminar CFEs en estado borrador. Para CFEs emitidos, usá la opción de anular." }, 422);
+  }
+
+  await c.env.DB.prepare("DELETE FROM cfe_documents WHERE id = ?").bind(id).run();
+
+  if (doc.cfe_xml_r2_key && c.env.DOCUMENTS_BUCKET) {
+    c.executionCtx?.waitUntil(
+      c.env.DOCUMENTS_BUCKET.delete(doc.cfe_xml_r2_key).catch((err: unknown) =>
+        console.error("R2 delete failed:", err)
+      )
+    );
+  }
+
+  return c.json({ ok: true });
+});
+
+// POST /api/cfe/generate-iva-book  — generate IVA book for a month and ingest it as a tax document
+// Body: { company_id, month, year }
+app.post("/api/cfe/generate-iva-book", requireAuth, async (c) => {
+  const tenantId = c.get("tenantId");
+  const userId   = c.get("userId");
+
+  const ffService = new FeatureFlagsService(c.env);
+  const flags = await ffService.getFlags(tenantId);
+  if (!flags["cfe_enabled"]) {
+    return c.json({ error: "La emisión de CFEs no está habilitada." }, 503);
+  }
+
+  const body = await c.req.json<{ company_id?: string; month?: number; year?: number }>();
+  const month = Number(body.month);
+  const year  = Number(body.year);
+
+  if (!body.company_id?.trim()) return c.json({ error: "company_id es requerido." }, 400);
+  if (!month || !year || month < 1 || month > 12 || year < 2000 || year > 2100) {
+    return c.json({ error: "Mes (1-12) y año (>= 2000) son requeridos." }, 400);
+  }
+
+  const company = await c.env.DB.prepare(
+    "SELECT id, razon_social, rut FROM companies WHERE id = ? AND user_id = ?"
+  ).bind(body.company_id.trim(), userId).first<{ id: string; razon_social: string; rut: string }>();
+  if (!company) return c.json({ error: "Empresa no encontrada." }, 404);
+
+  // Query all non-annulled CFEs for the month
+  const isoStart = `${year}-${String(month).padStart(2, "0")}-01`;
+  const isoEnd   = new Date(year, month, 0).toISOString().slice(0, 10); // last day of month
+
+  const cfes = await c.env.DB.prepare(
+    `SELECT tipo_cfe, numero, serie, fecha_emision, rut_receptor, razon_receptor,
+            concepto, subtotal, iva_tasa, monto_iva, total, estado
+     FROM cfe_documents
+     WHERE company_id = ? AND user_id = ?
+       AND fecha_emision >= ? AND fecha_emision <= ?
+       AND estado != 'anulado'
+     ORDER BY fecha_emision ASC, numero ASC`
+  ).bind(company.id, userId, isoStart, isoEnd).all<{
+    tipo_cfe: number; numero: number | null; serie: string | null;
+    fecha_emision: string; rut_receptor: string | null; razon_receptor: string | null;
+    concepto: string; subtotal: number; iva_tasa: string;
+    monto_iva: number; total: number; estado: string;
+  }>();
+
+  if (cfes.results.length === 0) {
+    return c.json({ error: `No hay CFEs emitidos para ${company.razon_social} en el período ${month}/${year}.` }, 422);
+  }
+
+  // Aggregate by IVA rate for the book
+  const totales: Record<string, { base: number; iva: number; total: number; cantidad: number }> = {};
+  for (const cfe of cfes.results) {
+    const tasa = cfe.iva_tasa;
+    if (!totales[tasa]) totales[tasa] = { base: 0, iva: 0, total: 0, cantidad: 0 };
+    totales[tasa].base  += cfe.subtotal;
+    totales[tasa].iva   += cfe.monto_iva;
+    totales[tasa].total += cfe.total;
+    totales[tasa].cantidad++;
+  }
+
+  const MONTH_NAMES = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
+  const label = `${MONTH_NAMES[month - 1]} ${year}`;
+
+  // Build CSV content
+  const lines: string[] = [
+    `Libro IVA Ventas — ${company.razon_social} (RUT: ${company.rut}) — ${label}`,
+    "",
+    "Fecha,Tipo CFE,Número,Receptor RUT,Receptor,Concepto,Subtotal,Tasa IVA,IVA,Total,Estado",
+  ];
+  for (const cfe of cfes.results) {
+    lines.push([
+      cfe.fecha_emision,
+      TIPOS_CFE_LABELS[cfe.tipo_cfe] ?? cfe.tipo_cfe,
+      `${cfe.serie ?? ""}${cfe.numero ?? ""}`,
+      cfe.rut_receptor ?? "",
+      cfe.razon_receptor ?? "Consumidor Final",
+      cfe.concepto,
+      cfe.subtotal.toFixed(2),
+      cfe.iva_tasa === "exento" ? "Exento" : `${cfe.iva_tasa}%`,
+      cfe.monto_iva.toFixed(2),
+      cfe.total.toFixed(2),
+      cfe.estado,
+    ].join(","));
+  }
+
+  lines.push("");
+  lines.push("RESUMEN POR TASA:");
+  for (const [tasa, totalesTasa] of Object.entries(totales)) {
+    const tasaLabel = tasa === "exento" ? "Exento" : `IVA ${tasa}%`;
+    lines.push(`${tasaLabel},Cantidad: ${totalesTasa.cantidad},Base: ${totalesTasa.base.toFixed(2)},IVA: ${totalesTasa.iva.toFixed(2)},Total: ${totalesTasa.total.toFixed(2)}`);
+  }
+
+  const grandTotal = cfes.results.reduce((s, c) => s + c.total, 0);
+  lines.push(`TOTAL GENERAL,${cfes.results.length} CFEs,,${grandTotal.toFixed(2)}`);
+
+  const csvContent = lines.join("\n");
+
+  // Find or create the tax_period for this month/company
+  let periodId: string | null = await c.env.DB.prepare(
+    "SELECT id FROM tax_periods WHERE user_id = ? AND month = ? AND year = ? AND company_id = ?"
+  ).bind(userId, month, year, company.id).first<{ id: string }>().then(r => r?.id ?? null);
+
+  if (!periodId) {
+    periodId = crypto.randomUUID();
+    try {
+      await c.env.DB.prepare(
+        `INSERT INTO tax_periods (id, user_id, tenant_id, month, year, label, company_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`
+      ).bind(periodId, userId, tenantId, month, year, label, company.id).run();
+    } catch {
+      // Already exists with different company — look it up without company filter
+      const found = await c.env.DB.prepare(
+        "SELECT id FROM tax_periods WHERE user_id = ? AND month = ? AND year = ? AND company_id IS NULL"
+      ).bind(userId, month, year).first<{ id: string }>();
+      periodId = found?.id ?? null;
+      if (!periodId) {
+        return c.json({ error: "No se pudo crear o encontrar el período fiscal correspondiente." }, 500);
+      }
+    }
+  }
+
+  // Upsert the IVA book document in the period
+  const filename = `libro_iva_ventas_${year}_${String(month).padStart(2, "0")}_${company.rut}.csv`;
+  const existingDoc = await c.env.DB.prepare(
+    "SELECT id FROM tax_documents WHERE period_id = ? AND doc_type = 'libro_iva_ventas' AND user_id = ?"
+  ).bind(periodId, userId).first<{ id: string }>();
+
+  if (existingDoc) {
+    await c.env.DB.prepare(
+      "UPDATE tax_documents SET content = ?, filename = ? WHERE id = ?"
+    ).bind(csvContent, filename, existingDoc.id).run();
+  } else {
+    const docId = crypto.randomUUID();
+    await c.env.DB.prepare(
+      `INSERT INTO tax_documents (id, period_id, user_id, filename, content, doc_type, source)
+       VALUES (?, ?, ?, ?, ?, 'libro_iva_ventas', 'cfe_auto')`
+    ).bind(docId, periodId, userId, filename, csvContent).run();
+  }
+
+  // Update CFEs with period_id (non-blocking)
+  c.executionCtx?.waitUntil(
+    c.env.DB.prepare(
+      `UPDATE cfe_documents SET periodo_id = ?
+       WHERE company_id = ? AND user_id = ?
+         AND fecha_emision >= ? AND fecha_emision <= ?
+         AND estado != 'anulado'`
+    ).bind(periodId, company.id, userId, isoStart, isoEnd).run()
+      .catch((err: unknown) => console.error("cfe_documents period update failed:", err))
+  );
+
+  return c.json({
+    ok: true,
+    period_id: periodId,
+    filename,
+    cfe_count: cfes.results.length,
+    total_general: grandTotal,
+    message: `Libro IVA Ventas generado con ${cfes.results.length} CFEs. Podés verlo en el período ${label} en la sección Impuestos.`,
+  });
+});
+
+
 
 app.all("*", async (c) => {
   return c.env.ASSETS.fetch(c.req.raw);
