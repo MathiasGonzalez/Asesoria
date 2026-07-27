@@ -57,3 +57,31 @@ Content-Type: application/json
 - Gestión de versiones: actualizar documentos sin duplicar chunks
 - Endpoint `DELETE /api/ingest/:id` para retirar documentos desactualizados
 - Interfaz web de administración en `/app/ingest` para carga masiva
+
+## Checklist de implementación
+
+### Base de datos
+- [x] Tabla `documents` creada con campos `id`, `title`, `source`, `url`
+- [x] Tabla `document_chunks` creada con campos `chunk_id`, `document_id`, `text`, `context`
+- [x] Tabla FTS5 `document_chunks_fts` con triggers de sincronización automática
+
+### Backend
+- [x] `POST /api/ingest` — acepta `{ id, title, source, content, url? }`
+- [x] Chunking por ventanas de 500 chars con ID `{document_id}_chunk_{index}`
+- [x] Contextualización AI por chunk (llama-3-8b-instruct)
+- [x] Upsert de vectores en Vectorize con metadatos `document_id`, `source`
+- [x] Guardado de chunks en D1 con texto + contexto
+
+### Validación
+- [x] UC-013: ingestión de T.O. DGI fraccionado y contextualizado correctamente
+- [x] UC-014: ingestión de decreto con `source: "DGI"` y URL oficial
+- [x] UC-015: ingestión de instructivo BPS disponible en búsquedas relacionadas
+- [x] UC-016: trazabilidad de chunk → documento padre verificada
+- [x] Ingestión de documento duplicado (mismo `id`) no genera chunks dobles
+
+### Pendiente (v2)
+- [ ] Chunking semántico por párrafo o sección legal
+- [ ] Soporte para PDF directo con OCR via Workers AI
+- [ ] Gestión de versiones: actualizar documentos sin duplicar chunks
+- [ ] `DELETE /api/ingest/:id` para retirar documentos desactualizados
+- [ ] Interfaz web de administración en `/app/ingest` para carga masiva

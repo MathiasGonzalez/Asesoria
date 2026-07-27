@@ -65,3 +65,38 @@ Astro build (srcDir: ./web, outDir: ./dist)
 - Agregar roles: `viewer` (solo consultas) vs `admin` (consultas + ingestión).
 - Implementar registro de usuarios con D1 y sesiones firmadas (JWT en Workers KV).
 - Agregar `/app/history` para historial de consultas por usuario.
+
+## Checklist de implementación
+
+### Infraestructura
+- [x] Astro 7 configurado con `srcDir: ./web`, `outDir: ./dist`, `output: 'static'`
+- [x] Binding `ASSETS` en `wrangler.jsonc` para servir el sitio estático desde el Worker
+- [x] Fallback a Hono para rutas `/api/*` desde el Worker
+
+### Componentes Frontend
+- [x] `BaseLayout.astro` — layout base con meta tags y CSS global
+- [x] `AppLayout.astro` — layout para páginas privadas con auth guard client-side
+- [x] `NavBar.astro` — barra de navegación diferenciada pública/privada
+- [x] `Hero.astro`, `Features.astro`, `Footer.astro` — componentes de landing
+
+### Páginas
+- [x] `/` — landing page pública con hero, features, CTA de acceso
+- [x] `/login` — formulario de email para solicitar OTP
+- [x] `/verify` — validación de OTP y redirección a `/app`
+- [x] `/app` — interfaz principal de consulta (auth guard activo)
+- [x] `/app/ingest` — panel de administración para ingestión (auth guard activo)
+
+### Seguridad
+- [x] Auth guard client-side: redirige a `/?login=required` si no hay token en `localStorage`
+- [x] Token almacenado en `localStorage` con clave `adviser_session`
+
+### Validación
+- [x] UC-021: visitante sin token ve la landing normalmente
+- [x] UC-022: usuario con token accede a `/app` correctamente
+- [x] UC-023: acceso directo a `/app` sin token redirige a `/?login=required`
+- [x] UC-025: logout elimina token de `localStorage` y redirige a landing
+
+### Pendiente (v2)
+- [ ] Migrar auth guard a Cloudflare Access (Zero Trust) para SSO y hardware-key
+- [ ] Roles en frontend: `viewer` vs `admin`
+- [ ] `/app/history` — historial de consultas por usuario

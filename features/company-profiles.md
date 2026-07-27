@@ -66,3 +66,33 @@ EMPRESA ANALIZADA:
 - Búsqueda de empresa por RUT en catálogo público de DGI
 - Importación masiva desde CSV
 - Compartir empresa entre usuarios del mismo tenant
+
+## Checklist de implementación
+
+### Base de datos
+- [x] Tabla `companies` creada con `UNIQUE(user_id, rut)` y campos de régimen
+- [x] Migración correspondiente aplicada en local y remoto
+
+### Backend
+- [x] `GET /api/companies` — lista empresas del usuario autenticado
+- [x] `POST /api/companies` — crea empresa con validación de RUT (12 dígitos, normalización de formato)
+- [x] `PUT /api/companies/:id` — actualiza empresa (excepto RUT)
+- [x] `DELETE /api/companies/:id` — elimina empresa; FK `company_id` en períodos queda como `null`
+- [x] Normalización de RUT: elimina puntos, guiones y espacios antes de guardar
+- [x] Validación de 12 dígitos exactos en el RUT normalizado
+- [x] Contexto de empresa inyectado en el prompt de consolidación IA cuando `company_id` está vinculado
+
+### Frontend
+- [x] `/app/empresas` — lista de empresas con modal de creación/edición
+
+### Validación
+- [x] UC-050: perfil de empresa creado y contexto inyectado en análisis IA
+- [x] UC-051: cambio de régimen IRAE actualizado correctamente
+- [x] UC-052: eliminación de empresa conserva historial de períodos con `company_id = null`
+- [x] UC-053: RUT `21-000001-0018` normalizado a `210000010018` correctamente
+
+### Pendiente (v2)
+- [ ] Validación del dígito verificador del RUT (algoritmo DGI)
+- [ ] Búsqueda de empresa por RUT en catálogo público DGI
+- [ ] Importación masiva desde CSV
+- [ ] Compartir empresa entre usuarios del mismo tenant (requiere Fase 2: Multi-User Teams)

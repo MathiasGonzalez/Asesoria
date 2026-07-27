@@ -141,3 +141,13 @@ wrangler deploy
 | Instancias | 1 compartida (`"default"`) — stateless |
 
 Para minimizar cold starts en horarios de alta actividad (liquidaciones de fin de mes), se puede aumentar `sleepAfter` a `"30m"` temporalmente.
+
+## Checklist de implementación técnica
+
+- [ ] Repositorio `MathiasGonzalez/FluentReport` compilado y publicado como imagen Docker
+- [ ] Container configurado en `wrangler.jsonc` con `max_instances: 2`
+- [ ] Binding `REPORT_CONTAINER` disponible en el Worker
+- [ ] `src/services/reports.ts` con función `renderPdf(env, schema)` genérica implementada
+- [ ] Función `getContainer(env.REPORT_CONTAINER, 'default')` funcionando
+- [ ] Al menos un schema de prueba enviado y PDF recibido correctamente
+- [ ] Integrado en: `tax-analysis` (consolidado), `payroll-processing` (recibos, SUNA), `bank-reconciliation` (reporte), `client-portal` (informes), `e-factura-integration` (representación impresa CFE)

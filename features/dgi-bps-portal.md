@@ -38,3 +38,38 @@ Permite a Adviser interactuar con los portales gubernamentales **DGI SIGA** y **
 - **Cambios en el portal:** Un rediseño del portal gubernamental puede romper los selectores CSS. Se recomienda monitorear activamente y tener alertas cuando los endpoints fallen.
 - **IPs de Cloudflare:** Los portales gubernamentales podrían bloquear rangos de IP de datacenter. Si ocurre, se debe configurar un proxy residencial en la capa de Browser Rendering.
 - **Sesiones cortas:** Las sesiones de DGI/BPS tienen una duración limitada; el usuario deberá reconectar periódicamente.
+
+## Checklist de implementación
+
+### Prerequisito
+- [ ] Cloudflare Browser Rendering habilitado en el account
+- [ ] Worker Secret `PORTAL_ENCRYPTION_KEY` (32 bytes hex, AES-256-GCM) configurado
+
+### Base de datos
+- [ ] Tabla `portal_sessions` creada con campos `portal`, `company_id`, `encrypted_cookies`, `expires_at`
+- [ ] Índice `(tenant_id, company_id, portal)` creado
+
+### Backend
+- [ ] `POST /api/portal/dgi/connect` — valida credenciales DGI, guarda cookies cifradas
+- [ ] `POST /api/portal/bps/connect` — valida credenciales BPS, guarda cookies cifradas
+- [ ] `GET /api/portal/:portal/status` — verifica si la sesión almacenada sigue activa
+- [ ] `DELETE /api/portal/:portal` — elimina sesión almacenada (desconectar)
+- [ ] `POST /api/portal/dgi/tasks/:task` — ejecuta tarea DGI (estado_cuenta, constancia, consulta_deuda)
+- [ ] `POST /api/portal/bps/tasks/:task` — ejecuta tarea BPS (estado_cuenta, constancia, consulta_deuda)
+- [ ] Browser Rendering configurado con selectores CSS para SIGA DGI y SUNA BPS
+- [ ] Cifrado AES-256-GCM de cookies antes de persistir en D1
+- [ ] Credenciales del usuario NUNCA almacenadas — solo las cookies de sesión resultantes
+- [ ] Feature flag `portal_automation_enabled` (desactivado por defecto) protegiendo todos los endpoints
+
+### Frontend
+- [ ] `/app/portales` — lista de portales conectados con estado de sesión por empresa
+- [ ] `/app/portales/:portal/conectar` — formulario de credenciales con advertencia de seguridad
+- [ ] Pantalla de consentimiento explícito antes de conectar (con texto legal visible)
+
+### Validación
+- [ ] Flujo DGI: consulta estado de cuenta retorna datos del período correcto
+- [ ] Flujo BPS: descarga constancia de vigencia genera archivo PDF
+- [ ] Sesión expirada informa al usuario y solicita reconexión (no guarda contraseña)
+- [ ] Desconexión elimina cookies de D1 completamente
+- [ ] CAPTCHA en portal gubernamental detectado y reportado al usuario
+- [ ] Feature flag `portal_automation_enabled` desactivado en nuevos tenants por defecto

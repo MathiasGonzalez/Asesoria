@@ -61,3 +61,12 @@ const row = await env.DB.prepare(
 | `otp_auth_enabled` | `true` | Middleware de sesión |
 
 Al agregar nuevas features, se agrega un flag correspondiente en la migración inicial de esa feature.
+
+## Checklist de implementación técnica
+
+- [x] Migración `migrations/0003_flags.sql` aplicada con valores por defecto
+- [x] `src/routes/feature-flags.ts` creado con `GET /api/feature-flags`
+- [x] `src/services/flags.ts` creado con `getFlag(env, tenantId, name)`
+- [x] Flags: `ai_search_enabled`, `document_ingestion_enabled`, `hybrid_search_enabled`, `otp_auth_enabled`
+- [x] Binding `DB` en `wrangler.jsonc`
+- [ ] Al agregar nuevas features (Fase 2-3): agregar flag correspondiente en la migración de esa feature

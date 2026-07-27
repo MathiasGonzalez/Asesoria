@@ -1,0 +1,311 @@
+---
+import AppLayout from "../../../layouts/AppLayout.astro";
+---
+
+<AppLayout title="Nuevo CFE">
+  <!-- Header -->
+  <div class="flex items-center gap-3">
+    <a href="/app/facturacion" class="p-2 rounded-xl transition-colors"
+      style="color: #6b7280;"
+      onmouseover="this.style.background='rgba(0,0,0,0.05)'" onmouseout="this.style.background='transparent'">
+      <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" />
+      </svg>
+    </a>
+    <div>
+      <h1 class="text-2xl font-bold tracking-tight" style="color: #0f1117;">Nuevo CFE</h1>
+      <p class="text-sm" style="color: #6b7280;">Emitir Comprobante Fiscal Electrónico</p>
+    </div>
+  </div>
+
+  <!-- Alert -->
+  <div id="alert" class="hidden text-sm rounded-xl px-4 py-3"></div>
+
+  <!-- Form -->
+  <form id="cfe-form" class="flex flex-col gap-5">
+
+    <!-- Empresa -->
+    <div class="rounded-2xl p-5 flex flex-col gap-4" style="background: white; border: 1px solid rgba(0,0,0,0.07);">
+      <h2 class="text-sm font-semibold" style="color: #374151;">Empresa emisora</h2>
+      <div class="flex flex-col gap-1">
+        <label class="text-xs font-medium" style="color: #374151;">Empresa <span style="color:#dc2626">*</span></label>
+        <select id="company-id" required class="text-sm rounded-xl px-3 py-2.5 border w-full"
+          style="border-color: rgba(0,0,0,0.2); color: #374151;">
+          <option value="">Cargando empresas...</option>
+        </select>
+        <p id="config-warning" class="hidden text-xs mt-1 px-3 py-2 rounded-lg"
+          style="background: rgba(234,179,8,0.08); border: 1px solid rgba(234,179,8,0.25); color: #92400e;">
+          Esta empresa no tiene configuración CFE.
+          <a href="/app/facturacion/config" class="underline font-medium">Configurarla ahora →</a>
+        </p>
+      </div>
+    </div>
+
+    <!-- Tipo de CFE -->
+    <div class="rounded-2xl p-5 flex flex-col gap-4" style="background: white; border: 1px solid rgba(0,0,0,0.07);">
+      <h2 class="text-sm font-semibold" style="color: #374151;">Tipo de comprobante</h2>
+      <div class="grid grid-cols-2 sm:grid-cols-3 gap-3" id="tipo-options">
+        {[
+          { code: 101, label: "e-Ticket",              desc: "Consumidor final (IVA incluido)" },
+          { code: 111, label: "e-Factura",             desc: "Empresa a empresa" },
+          { code: 121, label: "e-Factura Exportación", desc: "Ventas al exterior, IVA 0%" },
+          { code: 151, label: "e-Resguardo",           desc: "Retenciones IRPF / IVA" },
+          { code: 181, label: "e-Remito",              desc: "Traslado de bienes" },
+          { code: 102, label: "Nota Crédito",          desc: "Correcciones y devoluciones" },
+        ].map(({ code, label, desc }) => (
+          <label class="tipo-option flex flex-col gap-1 p-3 rounded-xl border cursor-pointer transition-all"
+            style="border-color: rgba(0,0,0,0.12);"
+            data-code={code}>
+            <input type="radio" name="tipo_cfe" value={code} class="sr-only" />
+            <span class="text-sm font-semibold" style="color: #0f1117;">{label}</span>
+            <span class="text-xs" style="color: #6b7280;">{desc}</span>
+          </label>
+        ))}
+      </div>
+    </div>
+
+    <!-- Receptor -->
+    <div class="rounded-2xl p-5 flex flex-col gap-4" style="background: white; border: 1px solid rgba(0,0,0,0.07);">
+      <h2 class="text-sm font-semibold" style="color: #374151;">Receptor</h2>
+      <div class="grid sm:grid-cols-2 gap-4">
+        <div class="flex flex-col gap-1">
+          <label for="rut-receptor" class="text-xs font-medium" style="color: #374151;">RUT receptor <span id="rut-required" style="color:#dc2626; display:none">*</span></label>
+          <input type="text" id="rut-receptor" placeholder="210000010018"
+            class="text-sm rounded-xl px-3 py-2.5 border w-full"
+            style="border-color: rgba(0,0,0,0.2); color: #374151;" />
+          <p class="text-xs" style="color: #9ca3af;">12 dígitos sin puntos ni guiones</p>
+        </div>
+        <div class="flex flex-col gap-1">
+          <label for="razon-receptor" class="text-xs font-medium" style="color: #374151;">Razón social receptor</label>
+          <input type="text" id="razon-receptor" placeholder="Empresa S.A."
+            class="text-sm rounded-xl px-3 py-2.5 border w-full"
+            style="border-color: rgba(0,0,0,0.2); color: #374151;" />
+        </div>
+      </div>
+    </div>
+
+    <!-- Detalle del comprobante -->
+    <div class="rounded-2xl p-5 flex flex-col gap-4" style="background: white; border: 1px solid rgba(0,0,0,0.07);">
+      <h2 class="text-sm font-semibold" style="color: #374151;">Detalle del comprobante</h2>
+      <div class="flex flex-col gap-1">
+        <label for="concepto" class="text-xs font-medium" style="color: #374151;">Concepto <span style="color:#dc2626">*</span></label>
+        <input type="text" id="concepto" required placeholder="Descripción del servicio o bien"
+          class="text-sm rounded-xl px-3 py-2.5 border w-full"
+          style="border-color: rgba(0,0,0,0.2); color: #374151;" />
+      </div>
+      <div class="grid sm:grid-cols-3 gap-4">
+        <div class="flex flex-col gap-1">
+          <label for="subtotal" class="text-xs font-medium" style="color: #374151;">Subtotal (s/IVA) <span style="color:#dc2626">*</span></label>
+          <input type="number" id="subtotal" required min="0.01" step="0.01" placeholder="0.00"
+            class="text-sm rounded-xl px-3 py-2.5 border w-full"
+            style="border-color: rgba(0,0,0,0.2); color: #374151;" />
+        </div>
+        <div class="flex flex-col gap-1">
+          <label for="iva-tasa" class="text-xs font-medium" style="color: #374151;">Tasa IVA <span style="color:#dc2626">*</span></label>
+          <select id="iva-tasa" class="text-sm rounded-xl px-3 py-2.5 border w-full"
+            style="border-color: rgba(0,0,0,0.2); color: #374151;">
+            <option value="22">22%</option>
+            <option value="10">10% (mínima)</option>
+            <option value="0">0% (exportación)</option>
+            <option value="exento">Exento</option>
+          </select>
+        </div>
+        <div class="flex flex-col gap-1">
+          <label for="fecha-emision" class="text-xs font-medium" style="color: #374151;">Fecha de emisión <span style="color:#dc2626">*</span></label>
+          <input type="date" id="fecha-emision" required
+            class="text-sm rounded-xl px-3 py-2.5 border w-full"
+            style="border-color: rgba(0,0,0,0.2); color: #374151;" />
+        </div>
+      </div>
+
+      <!-- Live total preview -->
+      <div id="totals-preview" class="rounded-xl p-4 flex flex-col gap-2"
+        style="background: rgba(79,70,229,0.04); border: 1px solid rgba(79,70,229,0.12);">
+        <div class="flex justify-between text-sm">
+          <span style="color: #6b7280;">Subtotal</span>
+          <span id="preview-subtotal" style="color: #374151;">$ 0,00</span>
+        </div>
+        <div class="flex justify-between text-sm">
+          <span style="color: #6b7280;">IVA <span id="preview-tasa">22%</span></span>
+          <span id="preview-iva" style="color: #374151;">$ 0,00</span>
+        </div>
+        <div class="flex justify-between text-base font-bold border-t pt-2" style="border-color: rgba(79,70,229,0.2);">
+          <span style="color: #0f1117;">Total</span>
+          <span id="preview-total" style="color: #4f46e5;">$ 0,00</span>
+        </div>
+      </div>
+    </div>
+
+    <button type="submit" id="submit-btn"
+      class="w-full text-sm font-medium rounded-xl py-3 transition-all"
+      style="background: #4f46e5; color: white; box-shadow: 0 2px 8px rgba(79,70,229,0.25);">
+      Emitir CFE
+    </button>
+  </form>
+</AppLayout>
+
+<script>
+  const session = localStorage.getItem("adviser_session");
+  const auth    = () => ({ Authorization: "Bearer " + session });
+
+  function fmt(n: number) {
+    return new Intl.NumberFormat("es-UY", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
+  }
+
+  function showAlert(msg: string, isError = true) {
+    const el = document.getElementById("alert")!;
+    el.textContent = msg;
+    el.style.cssText = isError
+      ? "display:block; background:rgba(239,68,68,0.08); border:1px solid rgba(239,68,68,0.25); color:#b91c1c; border-radius:0.75rem; padding:0.75rem 1rem;"
+      : "display:block; background:rgba(16,185,129,0.08); border:1px solid rgba(16,185,129,0.25); color:#065f46; border-radius:0.75rem; padding:0.75rem 1rem;";
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+
+  function updateTotals() {
+    const subtotal = parseFloat((document.getElementById("subtotal") as HTMLInputElement).value) || 0;
+    const tasa     = (document.getElementById("iva-tasa") as HTMLSelectElement).value;
+    const rate     = tasa === "exento" || tasa === "0" ? 0 : parseInt(tasa) / 100;
+    const iva      = Math.round(subtotal * rate * 100) / 100;
+    const total    = Math.round((subtotal + iva) * 100) / 100;
+
+    document.getElementById("preview-subtotal")!.textContent = "$ " + fmt(subtotal);
+    document.getElementById("preview-iva")!.textContent      = "$ " + fmt(iva);
+    document.getElementById("preview-total")!.textContent    = "$ " + fmt(total);
+    document.getElementById("preview-tasa")!.textContent     = tasa === "exento" ? "Exento" : tasa + "%";
+  }
+
+  document.getElementById("subtotal")!.addEventListener("input",  updateTotals);
+  document.getElementById("iva-tasa")!.addEventListener("change", updateTotals);
+
+  // Set today as default date
+  (document.getElementById("fecha-emision") as HTMLInputElement).value = new Date().toISOString().slice(0, 10);
+
+  // Tipo CFE selection
+  let selectedTipo: number | null = null;
+
+  document.querySelectorAll(".tipo-option").forEach(el => {
+    el.addEventListener("click", () => {
+      document.querySelectorAll(".tipo-option").forEach(o => {
+        (o as HTMLElement).style.borderColor = "rgba(0,0,0,0.12)";
+        (o as HTMLElement).style.background  = "";
+      });
+      el.querySelector("input")!.checked = true;
+      selectedTipo = parseInt((el as HTMLElement).dataset.code!);
+      (el as HTMLElement).style.borderColor = "#4f46e5";
+      (el as HTMLElement).style.background  = "rgba(79,70,229,0.04)";
+
+      // Show/hide RUT required indicator
+      const needsRut = selectedTipo === 111 || selectedTipo === 121;
+      (document.getElementById("rut-required") as HTMLElement).style.display = needsRut ? "inline" : "none";
+
+      // For exportación, auto-set IVA to 0
+      if (selectedTipo === 121) {
+        (document.getElementById("iva-tasa") as HTMLSelectElement).value = "0";
+        updateTotals();
+      }
+    });
+  });
+
+  // Auto-select first tipo
+  (document.querySelector(".tipo-option") as HTMLElement)?.click();
+
+  // Load companies
+  async function loadCompanies() {
+    const res  = await fetch("/api/companies", { headers: auth() });
+    const data = await res.json<{ companies?: { id: string; razon_social: string }[] }>();
+    const sel  = document.getElementById("company-id") as HTMLSelectElement;
+    sel.innerHTML = '<option value="">Seleccioná una empresa</option>';
+    (data.companies ?? []).forEach(co => {
+      const o = document.createElement("option");
+      o.value = co.id; o.textContent = co.razon_social;
+      sel.appendChild(o);
+    });
+    if ((data.companies ?? []).length === 1) {
+      sel.value = data.companies![0].id;
+      checkConfig(data.companies![0].id);
+    }
+  }
+
+  async function checkConfig(companyId: string) {
+    const warn = document.getElementById("config-warning")!;
+    if (!companyId) { warn.style.display = "none"; return; }
+    const res  = await fetch("/api/cfe/config?company_id=" + companyId, { headers: auth() });
+    if (res.status === 503) { warn.style.display = "none"; return; } // feature flag disabled, not a config issue
+    const data = await res.json<{ config?: unknown }>();
+    warn.style.display = (!res.ok || !data.config) ? "block" : "none";
+  }
+
+  document.getElementById("company-id")!.addEventListener("change", (e) => {
+    checkConfig((e.target as HTMLSelectElement).value);
+  });
+
+  loadCompanies();
+
+  // Form submit
+  document.getElementById("cfe-form")!.addEventListener("submit", async (e) => {
+    e.preventDefault();
+
+    const submitBtn = document.getElementById("submit-btn") as HTMLButtonElement;
+    const companyId = (document.getElementById("company-id") as HTMLSelectElement).value;
+
+    if (!companyId) { showAlert("Seleccioná una empresa."); return; }
+    if (!selectedTipo) { showAlert("Seleccioná el tipo de CFE."); return; }
+
+    const concepto  = (document.getElementById("concepto")        as HTMLInputElement).value.trim();
+    const subtotal  = parseFloat((document.getElementById("subtotal")  as HTMLInputElement).value);
+    const ivaTasa   = (document.getElementById("iva-tasa")         as HTMLSelectElement).value;
+    const fecha     = (document.getElementById("fecha-emision")    as HTMLInputElement).value;
+    const rutRec    = (document.getElementById("rut-receptor")     as HTMLInputElement).value.trim();
+    const razonRec  = (document.getElementById("razon-receptor")   as HTMLInputElement).value.trim();
+
+    if (!concepto)          { showAlert("El concepto es requerido."); return; }
+    if (isNaN(subtotal) || subtotal <= 0) { showAlert("El subtotal debe ser un número positivo."); return; }
+    if (!fecha)             { showAlert("La fecha de emisión es requerida."); return; }
+
+    submitBtn.textContent = "Emitiendo...";
+    submitBtn.disabled    = true;
+
+    const res  = await fetch("/api/cfe/emit", {
+      method: "POST",
+      headers: { ...auth(), "Content-Type": "application/json" },
+      body: JSON.stringify({
+        company_id: companyId,
+        tipo_cfe: selectedTipo,
+        rut_receptor: rutRec || undefined,
+        razon_receptor: razonRec || undefined,
+        concepto,
+        subtotal,
+        iva_tasa: ivaTasa,
+        fecha_emision: fecha,
+      }),
+    });
+    const data = await res.json<{
+      ok?: boolean; draft?: boolean; warning?: string;
+      document?: { id: string; estado: string; total: number; cae_numero?: string };
+      error?: string;
+    }>();
+
+    submitBtn.textContent = "Emitir CFE";
+    submitBtn.disabled    = false;
+
+    if (!res.ok) {
+      showAlert(data.error ?? "Error al emitir el CFE.");
+      return;
+    }
+
+    if (data.draft) {
+      showAlert(
+        `CFE guardado como borrador. ${data.warning ?? ""}`,
+        false
+      );
+    } else {
+      showAlert(
+        `CFE emitido correctamente.${data.document?.cae_numero ? " CAE: " + data.document.cae_numero : ""}`,
+        false
+      );
+    }
+
+    // Redirect to list after short delay
+    setTimeout(() => { window.location.href = "/app/facturacion"; }, 2000);
+  });
+</script>

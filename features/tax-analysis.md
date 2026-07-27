@@ -90,3 +90,39 @@ El modelo `@cf/qwen/qwq-32b` devuelve un objeto JSON con:
 - Notificaciones de vencimiento por email (D-5 antes de cada fecha)
 - Exportación del consolidado como PDF
 - Comparación entre períodos
+
+## Checklist de implementación
+
+### Base de datos
+- [x] Tabla `tax_periods` creada con `UNIQUE(user_id, month, year, company_id)`
+- [x] Tabla `tax_documents` creada con metadatos R2 (`r2_key`, `mime_type`, `file_size`, `source`)
+- [x] Tabla `tax_consolidations` creada con `UNIQUE(period_id)` para sobreescribir en re-análisis
+
+### Backend
+- [x] `GET /api/tax/periods` — lista períodos del usuario autenticado
+- [x] `POST /api/tax/periods` — crea período con `month`, `year`, `company_id?`, `notas?`
+- [x] `DELETE /api/tax/periods/:id` — elimina período y todos sus documentos
+- [x] `GET /api/tax/periods/:id/documents` — lista documentos con metadatos de empresa
+- [x] `POST /api/tax/periods/:id/documents` — agrega documento vía JSON
+- [x] `POST /api/tax/periods/:id/upload` — carga archivo multipart a R2
+- [x] `POST /api/tax/periods/:id/import-gdoc` — importa desde Google Docs/Sheets público
+- [x] `GET /api/tax/periods/:id/documents/:docId/download` — descarga desde R2
+- [x] `DELETE /api/tax/periods/:id/documents/:docId` — elimina documento
+- [x] `POST /api/tax/periods/:id/consolidate` — ejecuta análisis con `@cf/qwen/qwq-32b`, guarda en `tax_consolidations`
+- [x] `GET /api/tax/periods/:id/consolidation` — retorna resultado almacenado
+
+### Frontend
+- [x] `/app/impuestos` — cuadrícula de períodos con badges de estado y modal de creación
+- [x] `/app/impuestos/periodo?id=` — vista de detalle con pestañas Documentos / Análisis
+
+### Validación
+- [x] UC-030: análisis de SRL con libro IVA + planilla de sueldos — consolidado correcto
+- [x] UC-031: monotributista con resumen bancario PDF obtiene cuota y vencimientos
+- [x] UC-032: ciclo de estados `draft` → `analyzed` funciona correctamente
+- [x] UC-033: re-análisis con documento adicional sobreescribe consolidación anterior
+
+### Pendiente (v2)
+- [ ] OCR automático de PDFs (Workers AI)
+- [ ] Notificaciones de vencimiento por email (D-5)
+- [ ] Exportación del consolidado como PDF via FluentReport
+- [ ] Comparación entre períodos

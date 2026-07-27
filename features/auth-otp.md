@@ -53,3 +53,29 @@ Each tenant gets isolated feature flag overrides. The RAG corpus is currently sh
    wrangler secret put EMAIL_API_KEY --env develop
    wrangler secret put EMAIL_FROM     --env develop
    ```
+
+## Checklist de implementación
+
+### Base de datos
+- [x] Migración `migrations/0001_auth.sql` aplicada (local y remoto)
+- [x] Tablas `tenants`, `users`, `otp_codes`, `sessions` creadas con índices
+
+### Backend
+- [x] `POST /api/auth/request-otp` — genera OTP, invalida anteriores, envía email via Resend
+- [x] `POST /api/auth/verify-otp` — valida OTP, crea tenant + user en primer login, retorna token de sesión
+- [x] `POST /api/auth/logout` — elimina sesión de D1
+- [x] Middleware `src/middleware/auth.ts` protegiendo rutas `/api/` (excepto auth)
+- [x] Sesiones con TTL 24h; revocables server-side
+
+### Infraestructura
+- [x] Worker Secret `EMAIL_API_KEY` (Resend) configurado en `prod` y `develop`
+- [x] Worker Secret `EMAIL_FROM` configurado en `prod` y `develop`
+
+### Frontend
+- [x] Página `/login` — formulario de email para solicitar OTP
+- [x] Página `/verify` — ingreso del código de 6 dígitos y guardado de token en `localStorage`
+
+### Validación
+- [x] OTP de uso único que expira en 10 minutos
+- [x] Segundo login con email existente reutiliza tenant existente
+- [x] Acceso a `/api/` sin token devuelve `401`

@@ -146,3 +146,46 @@ Extracto importado (CSV/OFX parseado)
 - Detección de gastos duplicados (mismo monto, misma descripción, días seguidos)
 - Informe de flujo de caja mensual generado automáticamente desde el extracto conciliado
 - Soporte multi-moneda con tipo de cambio BCU automático para cuentas en USD
+
+## Checklist de implementación
+
+### Prerequisito
+- [ ] `e-factura-integration.md` implementado (para matching con CFEs)
+- [ ] Repositorio `MathiasGonzalez/FluentReport` desplegado como Cloudflare Container
+
+### Base de datos
+- [ ] Migración `migrations/0013_bank.sql` aplicada (tablas `bank_accounts`, `bank_statements`, `bank_transactions`, `reconciliation_reports`)
+- [ ] Índice `idx_bank_tx_statement ON bank_transactions(statement_id)` creado
+
+### Backend
+- [ ] `GET /api/bank/accounts` — lista cuentas bancarias del tenant
+- [ ] `POST /api/bank/accounts` — registra cuenta bancaria
+- [ ] `POST /api/bank/statements/import` — importa extracto CSV/OFX (multipart)
+- [ ] `GET /api/bank/statements` — lista extractos importados
+- [ ] `GET /api/bank/statements/:id/transactions` — lista transacciones del extracto
+- [ ] `PUT /api/bank/transactions/:id/categorize` — corrige categoría manualmente
+- [ ] `POST /api/bank/statements/:id/reconcile` — ejecuta conciliación contra CFEs del período
+- [ ] `GET /api/bank/statements/:id/report` — genera PDF de conciliación via FluentReport
+- [ ] `POST /api/bank/statements/:id/ingest` — ingesta resumen en el período fiscal
+- [ ] `src/services/bank-parser.ts` — parseadores CSV/OFX para BROU, Itaú, Santander, Scotiabank, OFX genérico
+- [ ] `src/services/bank-categorizer.ts` — categorización con Workers AI (`@cf/meta/llama-3-8b-instruct`), transacciones con confianza <0.70 marcadas como `desconocido`
+- [ ] `src/services/bank-reconciler.ts` — cruce contra CFEs por monto, fecha ±3 días y RUT
+- [ ] Feature flag `bank_reconciliation_enabled` protegiendo todos los endpoints `/api/bank/*`
+
+### Frontend
+- [ ] `/app/conciliacion` — lista de extractos importados por empresa con estado
+- [ ] `/app/conciliacion/:statementId` — tabla interactiva de transacciones con categorías editables
+- [ ] `/app/conciliacion/:statementId/reporte` — resumen de conciliación y diferencias detectadas
+
+### Validación
+- [ ] UC-130: importación de extracto BROU CSV, 287 movimientos categorizados, 12 no identificados
+- [ ] UC-131: CFEs emitidos del mes cruzados contra movimientos bancarios — facturas cobradas marcadas
+- [ ] UC-132: débito automático no contabilizado detectado y alertado al contador
+- [ ] UC-133: resumen de conciliación exportado como PDF e ingestado en período fiscal
+- [ ] UC-134: IA aprende correcciones del contador para futuras importaciones del mismo cliente
+
+### Pendiente (v2)
+- [ ] Conexión directa via open banking cuando esté disponible en Uruguay (ver `roadmap/fase-4-openbanking.md`)
+- [ ] Detección de gastos duplicados
+- [ ] Informe de flujo de caja desde extracto conciliado
+- [ ] Soporte multi-moneda con tipo de cambio BCU para cuentas en USD

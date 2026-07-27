@@ -79,3 +79,12 @@ CREATE TABLE tax_consolidations (id TEXT PRIMARY KEY, period_id TEXT UNIQUE,
 ## Feature flag
 
 `ai_search_enabled` — si está deshabilitado, el endpoint `/consolidate` devuelve `403`.
+
+## Checklist de implementación técnica
+
+- [x] Migración `migrations/0005_tax_analysis.sql` aplicada
+- [x] `src/routes/tax.ts` creado con todos los endpoints
+- [x] `src/services/tax-consolidation.ts` creado con lógica de llamada a `qwq-32b`
+- [x] Integración con `companies` para inyectar contexto de empresa en el prompt
+- [x] Bindings `DB`, `DOCUMENTS_BUCKET`, `AI` en `wrangler.jsonc`
+- [ ] Integración con FluentReport Container para exportación PDF del consolidado (pendiente)

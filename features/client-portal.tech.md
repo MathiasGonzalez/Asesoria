@@ -89,3 +89,11 @@ const presigned = await env.DOCUMENTS_BUCKET.createSignedUrl(r2Key, { expiresIn:
 ## Feature flag
 
 `client_portal_enabled` — protege todos los endpoints `/api/portal/*`.
+
+## Checklist de implementación técnica
+
+- [ ] Tablas `client_invitations`, `document_requests`, `document_request_items`, `client_approvals` creadas
+- [ ] `src/routes/portal.ts` creado con todos los endpoints de portal
+- [ ] Link de descarga firmado con TTL implementado (token de tiempo limitado en KV o firmado)
+- [ ] Hash SHA-256 del documento aprobado calculado y almacenado en `client_approvals.document_hash`
+- [ ] Worker Secret o KV para tokens de link temporal configurado

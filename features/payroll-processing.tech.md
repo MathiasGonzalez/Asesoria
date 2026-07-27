@@ -125,3 +125,15 @@ Content-Disposition: attachment; filename="suna_YYYYMM.txt"
 ## Feature flag
 
 `payroll_enabled` — protege todos los endpoints `/api/payroll/*`.
+
+## Checklist de implementación técnica
+
+- [ ] FluentReport Container desplegado y disponible (ver `fluentreport-container.tech.md`)
+- [ ] Tablas `employees`, `payroll_periods`, `payroll_items` creadas
+- [ ] `src/routes/payroll.ts` creado con todos los endpoints
+- [ ] `src/services/payroll-calculator.ts` creado con lógica de cálculo IRPF Cat.1 + BPS
+- [ ] `src/config/tax-tables.ts` extendido con escalas BPS y BPC vigentes
+- [ ] Endpoint de PDF de recibo conectado a FluentReport Container
+- [ ] Endpoint de archivo SUNA generando formato correcto para BPS
+- [ ] Binding `REPORT_CONTAINER` en `wrangler.jsonc`
+- [ ] Feature flag `payroll_enabled` creado

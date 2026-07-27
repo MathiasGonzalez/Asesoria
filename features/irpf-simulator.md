@@ -123,3 +123,35 @@ El simulador puede invocar al asistente RAG para preguntas como:
 - Simulador de sueldo neto para ofertas laborales (cuánto paga el empleado y la empresa por un sueldo de $X)
 - Calculadora de precio de venta con IVA incluido/excluido
 - Exportación de simulaciones en PDF para presentar a clientes
+
+## Checklist de implementación
+
+### Backend
+- [ ] `src/services/tax-calculators.ts` con funciones puras: `calculateIRPFCat2()`, `calculateMonotributo()`, `compareRegimes()`, `calculateIRNR()`
+- [ ] `src/config/tax-tables.ts` con parámetros fiscales vigentes (BPC, escalas IRPF, cuotas Monotributo)
+- [ ] `POST /api/calculators/irpf` — simula IRPF Cat. 2 anual (no requiere autenticación)
+- [ ] `POST /api/calculators/monotributo` — calcula cuota Monotributo (no requiere autenticación)
+- [ ] `POST /api/calculators/irae-comparison` — compara regímenes IRAE (no requiere autenticación)
+- [ ] `POST /api/calculators/irnr` — calcula IRNR (no requiere autenticación)
+- [ ] `GET /api/calculators/tax-tables` — devuelve tablas fiscales vigentes con fecha de actualización
+
+### Frontend
+- [ ] `/calculadoras` — hub público de calculadoras con SEO optimizado (sin login)
+- [ ] `/calculadoras/irpf` — simulador IRPF Cat. 2 paso a paso con resultado detallado
+- [ ] `/calculadoras/monotributo` — calculadora con comparativa vs IRAE pequeña empresa
+- [ ] `/calculadoras/regimenes` — comparador de regímenes tributarios
+
+### Validación
+- [ ] UC-110: empleado con doble empleo obtiene IRPF global y saldo a pagar/cobrar
+- [ ] UC-111: freelancer obtiene comparativa de 3 regímenes con carga tributaria total
+- [ ] UC-112: cálculo IRNR para arrendamiento funciona correctamente
+- [ ] UC-113: proyección de carga al migrar de IRAE pequeña empresa a Real
+- [ ] UC-114: cuota Monotributo categoría A/B calculada correctamente
+- [ ] Endpoints públicos accesibles sin token de sesión
+- [ ] Calculadoras son stateless (no persisten en D1)
+- [ ] CTA de registro visible al completar simulación
+
+### Pendiente (v2)
+- [ ] Historial de simulaciones guardadas por usuario autenticado
+- [ ] Alertas automáticas cuando cambian tablas fiscales que afectan simulaciones guardadas
+- [ ] Exportación de simulaciones en PDF via FluentReport

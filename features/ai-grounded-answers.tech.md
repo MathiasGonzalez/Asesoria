@@ -50,3 +50,10 @@ El system prompt es inmutable y está embebido en `rag.ts`. Define:
 - D1 FTS5: ~20 ms
 - AI generation (`qwq-32b`): 800–2000 ms
 - **Total**: 950–2150 ms (edge inference sin cold start)
+
+## Checklist de implementación técnica
+
+- [x] Prompt del sistema con grounding estricto implementado en `src/services/rag.ts`
+- [x] Modelo `@cf/qwen/qwq-32b` configurado en Workers AI
+- [x] Respuesta incluye `originalQuery`, `sanitizedQuery`, `response`, `latencyMs`
+- [x] Binding `AI` en `wrangler.jsonc`

@@ -115,3 +115,14 @@ npx wrangler queues create adviser-notifications-develop
 ## Feature flag
 
 `notifications_enabled` — cuando está deshabilitado, los endpoints devuelven respuesta vacía y el cron no envía notificaciones.
+
+## Checklist de implementación técnica
+
+- [ ] Tablas `notification_preferences`, `notification_log`, `notification_subscriptions` creadas
+- [ ] Cloudflare Queue `NOTIFICATION_QUEUE` creado y binding en `wrangler.jsonc`
+- [ ] Cron Trigger `0 8 * * *` configurado en `wrangler.jsonc`
+- [ ] `src/scheduled/fiscal-reminders.ts` creado
+- [ ] `src/queues/notification-consumer.ts` creado
+- [ ] `src/routes/notifications.ts` creado con endpoints de preferencias y suscripciones
+- [ ] Worker Secret `WHATSAPP_TOKEN` configurado
+- [ ] VAPID key pair generado y configurado como Worker Secrets

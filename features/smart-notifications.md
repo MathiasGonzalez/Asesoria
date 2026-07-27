@@ -136,3 +136,44 @@ export async function checkFiscalDueDates(env: Env) {
 - Digest semanal: resumen de actividad del estudio los lunes
 - Integración con Google Calendar: agregar vencimientos como eventos con recordatorio
 - Smart throttling: si un cliente ya fue alertado 3 veces, escalar al contador titular
+
+## Checklist de implementación
+
+### Prerequisito
+- [ ] `fiscal-calendar.md` implementado (vencimientos calculados)
+- [ ] `multi-user-teams.md` implementado (rol y asignaciones de usuario)
+
+### Base de datos
+- [ ] Tabla `notification_preferences` creada con canales y horarios de silencio
+- [ ] Tabla `notification_log` creada para historial de envíos
+- [ ] Tabla `notification_subscriptions` creada para Web Push (VAPID endpoints)
+
+### Infraestructura
+- [ ] Cloudflare Queue `NOTIFICATION_QUEUE` creado y binding configurado
+- [ ] Cron Trigger diario (`0 8 * * *` — 8 AM UTC-3) configurado en `wrangler.jsonc`
+- [ ] Worker Secret `WHATSAPP_TOKEN` (Meta Cloud API / Twilio) configurado
+- [ ] VAPID key pair generado y configurado como Worker Secrets
+
+### Backend
+- [ ] `GET /api/notifications/preferences` — lee preferencias del usuario
+- [ ] `PUT /api/notifications/preferences` — actualiza canales y número de WhatsApp
+- [ ] `POST /api/notifications/push/subscribe` — registra suscripción Web Push
+- [ ] `DELETE /api/notifications/push/subscribe` — elimina suscripción Push
+- [ ] `GET /api/notifications/log` — historial de notificaciones
+- [ ] `POST /api/notifications/test` — notificación de prueba (dev/admin)
+- [ ] `src/scheduled/fiscal-reminders.ts` — escanea vencimientos próximos y encola mensajes
+- [ ] `src/queues/notification-consumer.ts` — consumer que envía por canal y registra en log
+- [ ] Envío de email via Resend (ya integrado) para notificaciones
+- [ ] Integración con WhatsApp Business API (Meta Cloud API o Twilio)
+- [ ] Envío de Web Push con VAPID
+
+### Frontend
+- [ ] `/app/configuracion/notificaciones` — preferencias de canal, horarios, número de WhatsApp
+
+### Validación
+- [ ] UC-120: WhatsApp D-5 antes de vencimiento IVA + email al contador asignado
+- [ ] UC-121: notificación push al contador cuando cliente sube documentos
+- [ ] UC-122: alerta al contador cuando período lleva >10 días en `draft`
+- [ ] UC-123: recordatorio de IRAE anual diferenciado según estado del período
+- [ ] UC-124: preferencias de canal respetadas (solo email / solo WhatsApp / ambos)
+- [ ] Horario de silencio (`quiet_hours`) respetado: notificaciones no enviadas fuera del horario

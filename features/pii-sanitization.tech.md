@@ -34,3 +34,10 @@ La sanitización se aplica **antes** de cualquier llamada a Workers AI y antes d
 
 - Named Entity Recognition (NER) para nombres propios: usar `@cf/meta/llama-3-8b-instruct` con un prompt de extracción de entidades antes del RAG.
 - Documentar en esta tech spec cuando se implemente.
+
+## Checklist de implementación técnica
+
+- [x] `src/services/anonymizer.ts` creado con clase `Anonymizer`
+- [x] Regex para CI, RUT y montos UYU/USD implementados y testeados
+- [x] `Anonymizer.sanitize()` llamado antes de cada invocación a Workers AI y antes de logging
+- [ ] Named Entity Recognition (NER) para nombres propios (Fase 2 — obligatorio)

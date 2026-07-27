@@ -78,6 +78,23 @@
   //                             node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 
   // -------------------------------------------------------------------------
+  // UruFactura Container — CFE / e-Factura emission.
+  // Deploy from MathiasGonzalez/UruFactura, then uncomment:
+  //
+  // [[durable_objects.bindings]]
+  // name       = "URUFACTURA_CONTAINER"
+  // class_name = "UruFacturaContainer"
+  //
+  // [[migrations]]
+  // tag         = "v2"
+  // new_classes = ["UruFacturaContainer"]
+  //
+  // [containers]
+  // image         = "ghcr.io/mathiasgonzalez/urufactura-cloudflare:latest"
+  // max_instances = 20
+  // -------------------------------------------------------------------------
+
+  // -------------------------------------------------------------------------
   // Develop environment – separate Worker + D1 + Vectorize index
   // -------------------------------------------------------------------------
   "env": {

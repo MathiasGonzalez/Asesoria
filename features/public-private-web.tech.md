@@ -57,3 +57,12 @@ El Worker Hono recibe todas las requests. Rutas `/api/*` las maneja el Worker; e
 ## Nuevas páginas por feature
 
 Al agregar features, cada nueva sección del producto crea páginas en `web/pages/app/`. El `AppLayout.astro` provee automáticamente el guard de autenticación y el nav.
+
+## Checklist de implementación técnica
+
+- [x] Astro 7 configurado con `srcDir: ./web`, `outDir: ./dist`, `output: 'static'`
+- [x] `web/layouts/BaseLayout.astro` y `web/layouts/AppLayout.astro` creados
+- [x] `web/components/NavBar.astro`, `Hero.astro`, `Features.astro`, `Footer.astro` creados
+- [x] Auth guard client-side en `AppLayout.astro` con `localStorage.getItem('adviser_session')`
+- [x] Binding `ASSETS` en `wrangler.jsonc`
+- [x] Pipeline `npm run build`: `astro build` + `tsc --noEmit`

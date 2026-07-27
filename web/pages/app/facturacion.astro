@@ -1,0 +1,510 @@
+---
+import AppLayout from "../../layouts/AppLayout.astro";
+---
+
+<AppLayout title="Facturación">
+  <!-- Header -->
+  <div class="flex items-start justify-between gap-4 flex-wrap">
+    <div class="flex flex-col gap-1">
+      <h1 class="text-2xl font-bold tracking-tight" style="color: #0f1117;">Facturación</h1>
+      <p class="text-sm" style="color: #6b7280; line-height: 1.6;">
+        Emití y gestioná Comprobantes Fiscales Electrónicos (CFE): e-Factura, e-Ticket y más.
+      </p>
+    </div>
+    <div class="flex items-center gap-2">
+      <button
+        id="btn-iva-book"
+        class="flex items-center gap-2 text-sm font-medium rounded-xl px-4 py-2.5 transition-all whitespace-nowrap"
+        style="background: white; color: #4f46e5; border: 1.5px solid #4f46e5;"
+        onmouseover="this.style.background='rgba(79,70,229,0.06)'; this.style.transform='translateY(-1px)';"
+        onmouseout="this.style.background='white'; this.style.transform='';"
+      >
+        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
+        </svg>
+        Generar libro IVA
+      </button>
+      <a
+        href="/app/facturacion/config"
+        class="flex items-center gap-2 text-sm font-medium rounded-xl px-4 py-2.5 transition-all whitespace-nowrap"
+        style="background: white; color: #6b7280; border: 1.5px solid rgba(0,0,0,0.12);"
+        onmouseover="this.style.background='rgba(0,0,0,0.03)'; this.style.transform='translateY(-1px)';"
+        onmouseout="this.style.background='white'; this.style.transform='';"
+      >
+        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 0 1 0 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 0 1 0-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28Z" />
+          <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+        </svg>
+        Configurar
+      </a>
+      <a
+        href="/app/facturacion/nueva"
+        class="flex items-center gap-2 text-sm font-medium rounded-xl px-4 py-2.5 transition-all whitespace-nowrap"
+        style="background: #4f46e5; color: white; box-shadow: 0 2px 8px rgba(79,70,229,0.25);"
+        onmouseover="this.style.background='#4338ca'; this.style.transform='translateY(-1px)';"
+        onmouseout="this.style.background='#4f46e5'; this.style.transform='';"
+      >
+        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+        </svg>
+        Nuevo CFE
+      </a>
+    </div>
+  </div>
+
+  <!-- Alert -->
+  <div id="alert" class="hidden text-sm rounded-xl px-4 py-3"></div>
+
+  <!-- Filters -->
+  <div class="flex flex-wrap gap-3 items-center">
+    <select id="filter-company" class="text-sm rounded-xl px-3 py-2 border" style="border-color: rgba(0,0,0,0.12); background: white; color: #374151;">
+      <option value="">Seleccioná una empresa</option>
+    </select>
+    <select id="filter-tipo" class="text-sm rounded-xl px-3 py-2 border" style="border-color: rgba(0,0,0,0.12); background: white; color: #374151;">
+      <option value="">Todos los tipos</option>
+      <option value="101">e-Ticket (101)</option>
+      <option value="111">e-Factura (111)</option>
+      <option value="121">e-Factura Exportación (121)</option>
+      <option value="151">e-Resguardo (151)</option>
+      <option value="181">e-Remito (181)</option>
+      <option value="102">Nota Crédito (102)</option>
+      <option value="112">Nota Crédito e-Ticket (112)</option>
+    </select>
+    <select id="filter-estado" class="text-sm rounded-xl px-3 py-2 border" style="border-color: rgba(0,0,0,0.12); background: white; color: #374151;">
+      <option value="">Todos los estados</option>
+      <option value="borrador">Borrador</option>
+      <option value="enviado">Enviado</option>
+      <option value="aceptado">Aceptado</option>
+      <option value="rechazado">Rechazado</option>
+      <option value="anulado">Anulado</option>
+    </select>
+    <button id="btn-search" class="text-sm font-medium px-4 py-2 rounded-xl transition-colors"
+      style="background: rgba(79,70,229,0.08); color: #4f46e5;"
+      onmouseover="this.style.background='rgba(79,70,229,0.14)'" onmouseout="this.style.background='rgba(79,70,229,0.08)'">
+      Buscar
+    </button>
+  </div>
+
+  <!-- Loading skeleton -->
+  <div id="loading" class="flex flex-col gap-3">
+    {Array.from({ length: 3 }).map(() => (
+      <div class="rounded-2xl p-4 animate-pulse" style="background: white; border: 1px solid rgba(0,0,0,0.07);">
+        <div class="flex justify-between">
+          <div class="h-4 rounded-lg w-1/3" style="background: #f3f4f6;"></div>
+          <div class="h-4 rounded-lg w-1/6" style="background: #f3f4f6;"></div>
+        </div>
+      </div>
+    ))}
+  </div>
+
+  <!-- Empty state -->
+  <div id="empty-state" class="hidden text-center py-16 flex flex-col items-center gap-3">
+    <div class="w-16 h-16 rounded-2xl flex items-center justify-center" style="background: rgba(79,70,229,0.07);">
+      <svg class="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="color: #4f46e5;">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 0 0 2.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 0 0-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 0 0 .75-.75 2.25 2.25 0 0 0-.1-.664m-5.8 0A2.251 2.251 0 0 1 13.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25ZM6.75 12h.008v.008H6.75V12Zm0 3h.008v.008H6.75V15Zm0 3h.008v.008H6.75V18Z" />
+      </svg>
+    </div>
+    <p class="text-base font-semibold" style="color: #0f1117;">Sin CFEs registrados</p>
+    <p class="text-sm max-w-xs" style="color: #6b7280;">Emití tu primer Comprobante Fiscal Electrónico seleccionando "Nuevo CFE".</p>
+    <a href="/app/facturacion/nueva" class="mt-2 text-sm font-medium transition-colors" style="color: #4f46e5;"
+      onmouseover="this.style.color='#4338ca'" onmouseout="this.style.color='#4f46e5'">
+      Emitir primer CFE →
+    </a>
+  </div>
+
+  <!-- CFE list -->
+  <div id="cfe-list" class="hidden flex flex-col gap-3"></div>
+
+  <!-- Load more -->
+  <div id="load-more-wrap" class="hidden text-center">
+    <button id="btn-load-more" class="text-sm font-medium px-5 py-2 rounded-xl transition-colors"
+      style="background: white; color: #6b7280; border: 1px solid rgba(0,0,0,0.1);"
+      onmouseover="this.style.background='rgba(0,0,0,0.03)'" onmouseout="this.style.background='white'">
+      Cargar más
+    </button>
+  </div>
+</AppLayout>
+
+<!-- IVA Book Modal -->
+<div id="iva-modal-overlay" class="fixed inset-0 z-50 hidden items-center justify-center px-4"
+  style="background: rgba(0,0,0,0.45); backdrop-filter: blur(6px);">
+  <div class="w-full max-w-sm rounded-2xl p-6 flex flex-col gap-4"
+    style="background: white; box-shadow: 0 24px 64px rgba(0,0,0,0.18);">
+    <div class="flex items-center justify-between">
+      <h2 class="text-base font-semibold" style="color: #0f1117;">Generar Libro IVA Ventas</h2>
+      <button id="iva-modal-close" class="rounded-lg p-1" style="color: #9ca3af;"
+        onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='transparent'">
+        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+        </svg>
+      </button>
+    </div>
+    <div id="iva-modal-alert" class="hidden text-xs rounded-lg px-3 py-2"
+      style="background: rgba(239,68,68,0.07); border: 1px solid rgba(239,68,68,0.25); color: #b91c1c;"></div>
+    <div id="iva-success" class="hidden text-xs rounded-lg px-3 py-2"
+      style="background: rgba(16,185,129,0.07); border: 1px solid rgba(16,185,129,0.25); color: #065f46;"></div>
+    <form id="iva-form" class="flex flex-col gap-4">
+      <div class="flex flex-col gap-1">
+        <label class="text-xs font-medium" style="color: #374151;">Empresa</label>
+        <select id="iva-company" class="text-sm rounded-xl px-3 py-2.5 border w-full" style="border-color: rgba(0,0,0,0.2); color: #374151;">
+          <option value="">Seleccioná una empresa</option>
+        </select>
+      </div>
+      <div class="flex gap-3">
+        <div class="flex flex-col gap-1 flex-1">
+          <label class="text-xs font-medium" style="color: #374151;">Mes</label>
+          <select id="iva-month" class="text-sm rounded-xl px-3 py-2.5 border w-full" style="border-color: rgba(0,0,0,0.2); color: #374151;">
+            <option value="1">Enero</option><option value="2">Febrero</option>
+            <option value="3">Marzo</option><option value="4">Abril</option>
+            <option value="5">Mayo</option><option value="6">Junio</option>
+            <option value="7">Julio</option><option value="8">Agosto</option>
+            <option value="9">Septiembre</option><option value="10">Octubre</option>
+            <option value="11">Noviembre</option><option value="12">Diciembre</option>
+          </select>
+        </div>
+        <div class="flex flex-col gap-1 flex-1">
+          <label class="text-xs font-medium" style="color: #374151;">Año</label>
+          <input type="number" id="iva-year" min="2020" max="2099" class="text-sm rounded-xl px-3 py-2.5 border w-full"
+            style="border-color: rgba(0,0,0,0.2); color: #374151;" />
+        </div>
+      </div>
+      <button type="submit" id="iva-submit" class="w-full text-sm font-medium rounded-xl py-2.5 transition-all"
+        style="background: #4f46e5; color: white; box-shadow: 0 2px 8px rgba(79,70,229,0.25);">
+        Generar e ingestar en Impuestos
+      </button>
+    </form>
+  </div>
+</div>
+
+<script>
+  const session = localStorage.getItem("adviser_session");
+  const auth    = () => ({ Authorization: "Bearer " + session });
+
+  const TIPO_LABELS: Record<number, string> = {
+    101: "e-Ticket", 111: "e-Factura", 112: "N. Crédito e-Ticket",
+    121: "e-Factura Exportación", 151: "e-Resguardo", 181: "e-Remito", 102: "N. Crédito e-Factura",
+  };
+  const ESTADO_COLORS: Record<string, string> = {
+    borrador:  "rgba(107,114,128,0.12)",
+    enviado:   "rgba(59,130,246,0.12)",
+    aceptado:  "rgba(16,185,129,0.12)",
+    rechazado: "rgba(239,68,68,0.12)",
+    anulado:   "rgba(156,163,175,0.12)",
+  };
+  const ESTADO_TEXT: Record<string, string> = {
+    borrador:  "#6b7280", enviado:   "#2563eb",
+    aceptado:  "#065f46", rechazado: "#b91c1c", anulado: "#6b7280",
+  };
+
+  let companies: { id: string; razon_social: string }[] = [];
+  let currentPage = 1;
+  let hasMore     = false;
+
+  function showAlert(msg: string, isError = true) {
+    const el = document.getElementById("alert")!;
+    el.textContent = msg;
+    el.style.cssText = isError
+      ? "display:block; background:rgba(239,68,68,0.08); border:1px solid rgba(239,68,68,0.25); color:#b91c1c; border-radius:0.75rem; padding:0.75rem 1rem;"
+      : "display:block; background:rgba(16,185,129,0.08); border:1px solid rgba(16,185,129,0.25); color:#065f46; border-radius:0.75rem; padding:0.75rem 1rem;";
+  }
+
+  function formatCurrency(n: number) {
+    return new Intl.NumberFormat("es-UY", { style: "currency", currency: "UYU", maximumFractionDigits: 2 }).format(n);
+  }
+
+  function escapeHtml(value: unknown): string {
+    return String(value ?? "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
+
+  function formatDate(iso: string) {
+    const [y, m, d] = iso.split("-");
+    return `${d}/${m}/${y}`;
+  }
+
+  function renderCfe(doc: Record<string, unknown>) {
+    const tipo  = Number(doc.tipo_cfe);
+    const el    = document.createElement("div");
+    el.className = "rounded-2xl p-4";
+    el.style.cssText = "background: white; border: 1px solid rgba(0,0,0,0.07);";
+
+    const eSerie    = escapeHtml(doc.serie);
+    const eNumero   = escapeHtml(doc.numero);
+    const eEstado   = escapeHtml(doc.estado);
+    const eConcepto = escapeHtml(doc.concepto);
+    const eRazon    = escapeHtml(doc.razon_receptor);
+    const eRut      = escapeHtml(doc.rut_receptor);
+    const eIvaTasa  = escapeHtml(doc.iva_tasa);
+    const eFecha    = escapeHtml(doc.fecha_emision);
+    const eId       = escapeHtml(doc.id);
+    const eCae      = escapeHtml(doc.cae_numero);
+
+    el.innerHTML = `
+      <div class="flex flex-col gap-2">
+        <div class="flex items-start justify-between gap-3 flex-wrap">
+          <div class="flex flex-col gap-0.5">
+            <div class="flex items-center gap-2">
+              <span class="text-xs font-semibold px-2 py-0.5 rounded-lg" style="background: rgba(79,70,229,0.08); color: #4f46e5;">
+                ${escapeHtml(TIPO_LABELS[tipo] ?? "CFE " + tipo)}
+              </span>
+              ${doc.numero ? `<span class="text-xs" style="color: #6b7280;">${eSerie}${eNumero}</span>` : ""}
+              <span class="text-xs font-medium px-2 py-0.5 rounded-lg" style="background: ${ESTADO_COLORS[doc.estado as string] ?? "rgba(107,114,128,0.1)"}; color: ${ESTADO_TEXT[doc.estado as string] ?? "#6b7280"};">
+                ${eEstado}
+              </span>
+            </div>
+            <p class="text-sm font-medium" style="color: #0f1117;">${eConcepto}</p>
+            ${doc.razon_receptor ? `<p class="text-xs" style="color: #6b7280;">→ ${eRazon}${doc.rut_receptor ? ` (RUT ${eRut})` : ""}</p>` : "<p class='text-xs' style='color:#6b7280;'>→ Consumidor Final</p>"}
+          </div>
+          <div class="flex flex-col items-end gap-1">
+            <span class="text-base font-bold" style="color: #0f1117;">${formatCurrency(Number(doc.total))}</span>
+            <span class="text-xs" style="color: #6b7280;">IVA ${doc.iva_tasa === "exento" ? "Exento" : eIvaTasa + "%"}: ${formatCurrency(Number(doc.monto_iva))}</span>
+            <span class="text-xs" style="color: #9ca3af;">${formatDate(eFecha)}</span>
+          </div>
+        </div>
+        <div class="flex items-center gap-2 pt-1 border-t" style="border-color: rgba(0,0,0,0.05);">
+          ${doc.has_xml ? `
+            <button class="btn-dl-xml text-xs font-medium transition-colors px-2 py-1 rounded-lg"
+              data-id="${eId}"
+              style="color: #4f46e5;"
+              onmouseover="this.style.background='rgba(79,70,229,0.07)'" onmouseout="this.style.background='transparent'">
+              ↓ XML
+            </button>` : ""}
+          ${doc.cae_numero ? `<span class="text-xs" style="color: #6b7280;">CAE: ${eCae}</span>` : ""}
+          ${doc.estado !== "anulado" && doc.estado !== "borrador" ? `
+            <button class="btn-annul text-xs font-medium transition-colors px-2 py-1 rounded-lg ml-auto"
+              data-id="${eId}"
+              style="color: #dc2626;"
+              onmouseover="this.style.background='rgba(220,38,38,0.07)'" onmouseout="this.style.background='transparent'">
+              Anular
+            </button>` : ""}
+          ${doc.estado === "borrador" ? `
+            <button class="btn-delete text-xs font-medium transition-colors px-2 py-1 rounded-lg ml-auto"
+              data-id="${eId}"
+              style="color: #dc2626;"
+              onmouseover="this.style.background='rgba(220,38,38,0.07)'" onmouseout="this.style.background='transparent'">
+              Eliminar
+            </button>` : ""}
+        </div>
+      </div>`;
+    return el;
+  }
+
+  async function loadCfes(page = 1, append = false) {
+    const companyId = (document.getElementById("filter-company") as HTMLSelectElement).value;
+    const tipo      = (document.getElementById("filter-tipo")    as HTMLSelectElement).value;
+    const estado    = (document.getElementById("filter-estado")  as HTMLSelectElement).value;
+
+    if (!companyId) {
+      if (!append) {
+        document.getElementById("loading")!.style.display = "none";
+        document.getElementById("empty-state")!.style.display  = "flex";
+        document.getElementById("cfe-list")!.style.display = "none";
+      }
+      return;
+    }
+
+    if (!append) {
+      document.getElementById("loading")!.style.display = "flex";
+      document.getElementById("empty-state")!.style.display = "none";
+      document.getElementById("cfe-list")!.style.display = "none";
+      document.getElementById("load-more-wrap")!.style.display = "none";
+    }
+
+    const params = new URLSearchParams({ company_id: companyId, page: String(page), limit: "20" });
+    if (tipo)   params.set("tipo_cfe", tipo);
+    if (estado) params.set("estado", estado);
+
+    try {
+      const res  = await fetch("/api/cfe/documents?" + params.toString(), { headers: auth() });
+      const data = await res.json<{ documents?: unknown[]; hasMore?: boolean; error?: string }>();
+
+      if (!res.ok) {
+        if (res.status === 503) {
+          showAlert("La funcionalidad de CFEs está deshabilitada en este entorno. Activá el feature flag `cfe_enabled` para comenzar.");
+        } else {
+          showAlert(data.error ?? "Error al cargar los CFEs.");
+        }
+        document.getElementById("loading")!.style.display = "none";
+        return;
+      }
+
+      const list = document.getElementById("cfe-list")!;
+      if (!append) list.innerHTML = "";
+
+      const docs = (data.documents ?? []) as Record<string, unknown>[];
+      hasMore = data.hasMore ?? false;
+
+      document.getElementById("loading")!.style.display = "none";
+
+      if (docs.length === 0 && !append) {
+        document.getElementById("empty-state")!.style.display = "flex";
+        list.style.display = "none";
+        document.getElementById("load-more-wrap")!.style.display = "none";
+      } else {
+        document.getElementById("empty-state")!.style.display = "none";
+        list.style.display = "flex";
+        list.style.flexDirection = "column";
+        list.style.gap = "0.75rem";
+        docs.forEach(doc => list.appendChild(renderCfe(doc)));
+        document.getElementById("load-more-wrap")!.style.display = hasMore ? "block" : "none";
+      }
+    } catch {
+      document.getElementById("loading")!.style.display = "none";
+      showAlert("Error de red al cargar los CFEs.");
+    }
+  }
+
+  async function loadCompanies() {
+    try {
+      const res  = await fetch("/api/companies", { headers: auth() });
+      const data = await res.json<{ companies?: { id: string; razon_social: string }[] }>();
+      companies  = data.companies ?? [];
+
+      const filterSel = document.getElementById("filter-company") as HTMLSelectElement;
+      const ivaSel    = document.getElementById("iva-company") as HTMLSelectElement;
+
+      companies.forEach(co => {
+        const o1 = document.createElement("option");
+        o1.value = co.id; o1.textContent = co.razon_social;
+        filterSel.appendChild(o1);
+
+        const o2 = document.createElement("option");
+        o2.value = co.id; o2.textContent = co.razon_social;
+        ivaSel.appendChild(o2);
+      });
+
+      if (companies.length === 1) {
+        filterSel.value = companies[0].id;
+        ivaSel.value    = companies[0].id;
+        loadCfes(1);
+      } else {
+        document.getElementById("loading")!.style.display = "none";
+        document.getElementById("empty-state")!.style.display = "flex";
+      }
+    } catch {
+      showAlert("Error al cargar las empresas.");
+    }
+  }
+
+  // Init default year for IVA book
+  (document.getElementById("iva-year") as HTMLInputElement).value = String(new Date().getFullYear());
+  const curMonth = new Date().getMonth() + 1;
+  (document.getElementById("iva-month") as HTMLSelectElement).value = String(curMonth);
+
+  loadCompanies();
+
+  document.getElementById("btn-search")!.addEventListener("click", () => {
+    currentPage = 1;
+    loadCfes(1);
+  });
+
+  document.getElementById("btn-load-more")!.addEventListener("click", () => {
+    currentPage++;
+    loadCfes(currentPage, true);
+  });
+
+  // XML download
+  document.getElementById("cfe-list")!.addEventListener("click", async (e) => {
+    const target = e.target as HTMLElement;
+
+    if (target.classList.contains("btn-dl-xml")) {
+      const id = target.dataset.id!;
+      const a  = document.createElement("a");
+      a.href   = `/api/cfe/documents/${id}/xml`;
+      (a as HTMLAnchorElement).download = "";
+      document.body.appendChild(a);
+      const res = await fetch(a.href, { headers: auth() });
+      if (!res.ok) { showAlert("No se pudo descargar el XML."); document.body.removeChild(a); return; }
+      const blob = await res.blob();
+      a.href = URL.createObjectURL(blob);
+      const cd  = res.headers.get("Content-Disposition") ?? "";
+      const fnStar = cd.match(/filename\*=UTF-8''([^\s;]+)/i)?.[1];
+      const fn  = fnStar
+        ? decodeURIComponent(fnStar)
+        : decodeURIComponent(cd.match(/filename="([^"]+)"/)?.[1] ?? "cfe.xml");
+      a.download = fn;
+      a.click();
+      URL.revokeObjectURL(a.href);
+      document.body.removeChild(a);
+    }
+
+    if (target.classList.contains("btn-annul")) {
+      const id = target.dataset.id!;
+      if (!confirm("¿Anular este CFE? Esta acción no se puede deshacer.")) return;
+      const res  = await fetch(`/api/cfe/documents/${id}/annul`, { method: "POST", headers: auth() });
+      const data = await res.json<{ ok?: boolean; error?: string }>();
+      if (!res.ok) { showAlert(data.error ?? "Error al anular el CFE."); return; }
+      showAlert("CFE anulado correctamente.", false);
+      currentPage = 1;
+      loadCfes(1);
+    }
+
+    if (target.classList.contains("btn-delete")) {
+      const id = target.dataset.id!;
+      if (!confirm("¿Eliminar este CFE en borrador?")) return;
+      const res  = await fetch(`/api/cfe/documents/${id}`, { method: "DELETE", headers: auth() });
+      const data = await res.json<{ ok?: boolean; error?: string }>();
+      if (!res.ok) { showAlert(data.error ?? "Error al eliminar el CFE."); return; }
+      showAlert("CFE eliminado.", false);
+      currentPage = 1;
+      loadCfes(1);
+    }
+  });
+
+  // IVA Book modal
+  document.getElementById("btn-iva-book")!.addEventListener("click", () => {
+    const overlay = document.getElementById("iva-modal-overlay")!;
+    overlay.style.display = "flex";
+    (document.getElementById("iva-modal-alert") as HTMLElement).style.display = "none";
+    (document.getElementById("iva-success")     as HTMLElement).style.display = "none";
+  });
+  document.getElementById("iva-modal-close")!.addEventListener("click", () => {
+    document.getElementById("iva-modal-overlay")!.style.display = "none";
+  });
+  document.getElementById("iva-modal-overlay")!.addEventListener("click", (e) => {
+    if (e.target === e.currentTarget) document.getElementById("iva-modal-overlay")!.style.display = "none";
+  });
+
+  document.getElementById("iva-form")!.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const alertEl   = document.getElementById("iva-modal-alert") as HTMLElement;
+    const successEl = document.getElementById("iva-success")     as HTMLElement;
+    const submitBtn = document.getElementById("iva-submit")      as HTMLButtonElement;
+    alertEl.style.display = "none";
+    successEl.style.display = "none";
+
+    const companyId = (document.getElementById("iva-company") as HTMLSelectElement).value;
+    const month     = parseInt((document.getElementById("iva-month") as HTMLSelectElement).value);
+    const year      = parseInt((document.getElementById("iva-year") as HTMLInputElement).value);
+
+    if (!companyId) { alertEl.textContent = "Seleccioná una empresa."; alertEl.style.display = "block"; return; }
+    if (!year || year < 2020) { alertEl.textContent = "Año inválido."; alertEl.style.display = "block"; return; }
+
+    submitBtn.textContent = "Generando...";
+    submitBtn.disabled = true;
+
+    const res  = await fetch("/api/cfe/generate-iva-book", {
+      method: "POST",
+      headers: { ...auth(), "Content-Type": "application/json" },
+      body: JSON.stringify({ company_id: companyId, month, year }),
+    });
+    const data = await res.json<{ ok?: boolean; message?: string; error?: string }>();
+
+    submitBtn.textContent = "Generar e ingestar en Impuestos";
+    submitBtn.disabled = false;
+
+    if (!res.ok) {
+      alertEl.textContent = data.error ?? "Error al generar el libro.";
+      alertEl.style.display = "block";
+      return;
+    }
+
+    successEl.textContent = data.message ?? "Libro IVA generado correctamente.";
+    successEl.style.display = "block";
+    document.getElementById("iva-form")!.style.display = "none";
+  });
+</script>

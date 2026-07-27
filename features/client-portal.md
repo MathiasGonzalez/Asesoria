@@ -117,3 +117,39 @@ La vista `/app/portal/dashboard` muestra:
 - App móvil para clientes (subir foto de factura directamente desde el teléfono)
 - Recordatorios automáticos: email/WhatsApp a clientes con pendientes D-3 al vencimiento
 - Métricas del estudio: tiempo promedio de procesamiento por cliente
+
+## Checklist de implementación
+
+### Prerequisito
+- [ ] `multi-user-teams.md` implementado (roles `client`, `accountant`, `admin`)
+
+### Base de datos
+- [ ] Tabla `client_invitations` creada
+- [ ] Tabla `document_requests` creada
+- [ ] Tabla `document_request_items` creada
+- [ ] Tabla `client_approvals` creada con campo `document_hash` para no-repudio
+
+### Backend
+- [ ] `POST /api/portal/invite` — invita cliente por email, crea `client_invitations`
+- [ ] `POST /api/portal/accept-invite` — cliente acepta invitación, crea cuenta con rol `client`
+- [ ] `GET /api/portal/clients` — lista clientes del tenant (vista contador)
+- [ ] `GET /api/portal/clients/:companyId/status` — estado de pendientes del cliente
+- [ ] `POST /api/portal/requests` — crea solicitud de documentos
+- [ ] `GET /api/portal/requests` — lista solicitudes con filtros por empresa/estado
+- [ ] `PUT /api/portal/requests/:id` — actualiza solicitud
+- [ ] `POST /api/portal/requests/:id/fulfill/:itemId` — cliente sube documento para un ítem
+- [ ] `POST /api/portal/approvals` — cliente aprueba informe (guarda hash + timestamp + IP)
+- [ ] `GET /api/portal/approvals/:periodId` — consulta estado de aprobación
+- [ ] `GET /api/portal/share/:token` — descarga informe compartido (link temporal con TTL)
+
+### Frontend
+- [ ] `/app/portal/dashboard` — semáforo de clientes (🔴🟠🟢), cola de docs recibidos, aprobaciones pendientes
+- [ ] `/app/portal/clientes/:companyId` — vista del cliente con solicitudes y documentos
+- [ ] `/portal/:token` — portal público del cliente (sin nav de la app)
+
+### Validación
+- [ ] UC-090: cliente recibe notificación y sube archivos correctamente
+- [ ] UC-091: cliente ve documentos recibidos y pendientes con fecha límite
+- [ ] UC-092: link de descarga firmado con TTL funciona y expira
+- [ ] UC-093: aprobación digital registra timestamp, IP y hash del documento
+- [ ] UC-094: contador ve dashboard con semáforo de todos sus clientes

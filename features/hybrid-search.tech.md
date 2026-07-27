@@ -41,3 +41,10 @@ END;
 - La fusión de resultados usa `Array.from(new Set([...semIds, ...ftsIds]))` para deduplicar.
 - FTS5 actúa como fallback cuando el corpus es pequeño (< 10 documentos) y Vectorize no tiene matches suficientes.
 - La búsqueda léxica usa el operador `MATCH` de SQLite FTS5, compatible con términos técnicos (`Art. 52`, números de decretos).
+
+## Checklist de implementación técnica
+
+- [x] Tabla FTS5 `document_chunks_fts` con triggers `after_chunk_insert` y `after_chunk_delete` creada en `migrations/0002_rag.sql`
+- [x] Fusión semántica + léxica implementada en `src/services/rag.ts`
+- [x] Deduplicación por ID antes del fetch de chunks completos
+- [x] Bindings `DB`, `VECTORIZE`, `AI` en `wrangler.jsonc`

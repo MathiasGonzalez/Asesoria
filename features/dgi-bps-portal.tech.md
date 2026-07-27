@@ -190,3 +190,13 @@ wrangler d1 migrations apply DB --remote
 # 4. Desplegar
 wrangler deploy
 ```
+
+## Checklist de implementación técnica
+
+- [ ] Tabla `portal_sessions` creada con campo `encrypted_cookies`
+- [ ] `src/services/portal-crypto.ts` con cifrado AES-256-GCM de cookies implementado
+- [ ] `src/routes/portal-dgi.ts` y `src/routes/portal-bps.ts` creados
+- [ ] Selectores CSS para SIGA DGI y SUNA BPS implementados y validados
+- [ ] Cloudflare Browser Rendering habilitado en el account y binding configurado
+- [ ] Worker Secret `PORTAL_ENCRYPTION_KEY` (32 bytes hex) configurado
+- [ ] Feature flag `portal_automation_enabled` creado y desactivado por defecto en todos los tenants

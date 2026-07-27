@@ -52,6 +52,12 @@ const { title } = Astro.props;
           onmouseover="this.style.background='rgba(0,0,0,0.04)'" onmouseout="if(!this.classList.contains('nav-active'))this.style.background='transparent'">
           Empresas
         </a>
+        <a href="/app/facturacion" id="nav-facturacion"
+          class="app-nav-link text-xs font-medium px-3 py-1.5 rounded-lg transition-colors"
+          style="color: #6b7280;"
+          onmouseover="this.style.background='rgba(0,0,0,0.04)'" onmouseout="if(!this.classList.contains('nav-active'))this.style.background='transparent'">
+          Facturación
+        </a>
       </div>
       <div class="flex items-center gap-4">
         <span id="user-email" class="text-xs hidden" style="color: #6b7280;"></span>
@@ -105,10 +111,11 @@ const { title } = Astro.props;
       // Highlight active nav link based on current path
       const path = window.location.pathname;
       const navMap: Record<string, string> = {
-        "nav-asistente":  "/app",
-        "nav-impuestos":  "/app/impuestos",
-        "nav-calendario": "/app/calendario",
-        "nav-empresas":   "/app/empresas",
+        "nav-asistente":   "/app",
+        "nav-impuestos":   "/app/impuestos",
+        "nav-calendario":  "/app/calendario",
+        "nav-empresas":    "/app/empresas",
+        "nav-facturacion": "/app/facturacion",
       };
       for (const [id, href] of Object.entries(navMap)) {
         const el = document.getElementById(id) as HTMLAnchorElement | null;

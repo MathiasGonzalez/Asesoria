@@ -39,3 +39,19 @@ Update `simple.limit` / `simple.period` in `wrangler.jsonc` and redeploy. No D1 
 ## Local Development
 
 Wrangler mocks the Rate Limiting binding locally. The mock always returns `{ success: true }`, so all requests pass during `wrangler dev`.
+
+## Checklist de implementación
+
+### Infraestructura
+- [x] Binding `RATE_LIMITER` configurado en `wrangler.jsonc` con namespace `1001` (prod) y `1002` (develop)
+- [x] Límite: 20 requests / 60 segundos por IP
+
+### Backend
+- [x] Middleware de rate limiting aplicado a todas las rutas `/api/*`
+- [x] Respuesta `429 Too Many Requests` con mensaje en español al superar el límite
+
+### Validación
+- [x] Más de 20 requests en 60s desde la misma IP devuelven `429`
+- [x] Request dentro del límite devuelve `200` normalmente
+- [x] Entornos `prod` y `develop` tienen contadores independientes (namespaces distintos)
+- [x] Mock local en `wrangler dev` siempre retorna `{ success: true }` (no bloquea desarrollo)
