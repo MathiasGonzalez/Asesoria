@@ -66,3 +66,12 @@ npx wrangler r2 bucket create adviser-documents-develop
 | `text/*`, `.csv`, `.json`, `.md` | Extracción directa (TextDecoder) |
 | `application/pdf` | Workers AI OCR (Fase 2) — hoy: vacío, usuario complementa |
 | `application/vnd.openxmlformats*` | Sin extracción automática (Fase 2) |
+
+## Checklist de implementación técnica
+
+- [x] Migración `migrations/0007_r2_documents.sql` aplicada
+- [x] Buckets R2 `adviser-documents` (prod) y `adviser-documents-develop` creados
+- [x] `src/services/storage.ts` creado con `put()`, `get()`, `delete()`
+- [x] Endpoints de upload, import-gdoc y download implementados en `src/routes/tax.ts`
+- [x] Binding `DOCUMENTS_BUCKET` (opcional) en `wrangler.jsonc`
+- [ ] OCR automático con Workers AI para PDFs escaneados (Fase 2 — ver `roadmap/fase-2-document-hub.md`)

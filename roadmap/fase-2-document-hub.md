@@ -332,3 +332,51 @@ CREATE TABLE folder_sync_state (
 | El contador no debería acceder a Drive del cliente sin su consentimiento | La conexión OAuth la realiza el propio cliente desde su sesión, no el contador |
 | Scopes mínimos | Solo `readonly` — Adviser nunca escribe en Drive/OneDrive/Dropbox |
 | Logs de acceso a documentos externos | Cada importación desde proveedor externo se registra en `audit_log` |
+
+---
+
+## Checklist de implementación
+
+### Paso 2.1 — Infraestructura OAuth
+- [ ] Migración `migrations/0017_oauth_tokens.sql` aplicada (tabla `oauth_connections`)
+- [ ] `src/services/oauth-crypto.ts` con `encryptToken()` y `decryptToken()` (AES-256-GCM)
+- [ ] `src/services/oauth-client.ts` con `getValidAccessToken()` y refresh automático
+- [ ] `GET /api/oauth/:provider/connect` — genera state CSRF, redirige al proveedor
+- [ ] `GET /api/oauth/:provider/callback` — intercambia code por tokens, cifra y guarda
+- [ ] `DELETE /api/oauth/:provider` — revoca tokens localmente y en el proveedor
+- [ ] `GET /api/oauth/connections` — lista conexiones activas del usuario
+- [ ] Worker Secret `OAUTH_ENCRYPTION_KEY` (32 bytes hex) configurado en prod y develop
+
+### Paso 2.2 — Google Drive
+- [ ] Proyecto OAuth creado en Google Cloud Console con Drive API y Sheets API habilitadas
+- [ ] Pantalla de consentimiento OAuth configurada y en revisión por Google (para producción)
+- [ ] Redirect URI registrada en Google: `https://adviser.tudominio.uy/api/oauth/google/callback`
+- [ ] Worker Secrets `GOOGLE_CLIENT_ID` y `GOOGLE_CLIENT_SECRET` configurados
+- [ ] `src/routes/drive.ts`: `GET /api/drive/browse`, `GET /api/drive/browse/:folderId`, `GET /api/drive/import/:fileId`
+- [ ] Importación de Google Docs como `text/plain` y Sheets como `text/csv` via Drive export URL
+- [ ] `companies` extendida con `gdrive_folder_id`, `gdrive_folder_name`, `oauth_connection_id`
+
+### Paso 2.3 — Microsoft OneDrive / SharePoint
+- [ ] App registration creada en Azure AD con scopes `Files.Read`, `offline_access`
+- [ ] Redirect URI registrada en Azure: `https://adviser.tudominio.uy/api/oauth/microsoft/callback`
+- [ ] Worker Secrets `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET` configurados
+- [ ] `src/routes/onedrive.ts`: browse y import usando Microsoft Graph API
+- [ ] `companies` extendida con `onedrive_folder_id`, `onedrive_folder_name`
+
+### Paso 2.4 — OCR con Workers AI
+- [ ] `src/services/ocr.ts` con `extractTextFromPdf()` usando modelo de visión Workers AI
+- [ ] Cloudflare Queue `OCR_QUEUE` creado y binding configurado
+- [ ] `src/queues/ocr-consumer.ts`: consumer que procesa cola OCR y actualiza `tax_documents.content`
+- [ ] Pipeline de upload de PDF: encola mensaje OCR en lugar de dejar `content` vacío
+- [ ] UI muestra estado "Procesando OCR..." y se actualiza al completar
+
+### Paso 2.5 — Dropbox
+- [ ] App Dropbox creada en dropbox.com/developers con scopes `files.metadata.read`, `files.content.read`
+- [ ] Worker Secrets `DROPBOX_CLIENT_ID`, `DROPBOX_CLIENT_SECRET` configurados
+- [ ] `src/routes/dropbox.ts`: browse y import
+
+### Paso 2.6 — Sincronización diferencial
+- [ ] Migración `migrations/0018_folder_sync.sql` aplicada (tabla `folder_sync_state`)
+- [ ] Cloudflare Cron Trigger configurado para sync diario (o por hora)
+- [ ] `src/queues/sync-consumer.ts`: consumer que descarga archivos nuevos, guarda en R2, extrae texto
+- [ ] Change tokens almacenados y actualizados: `pageToken` (Google), `deltaLink` (Microsoft), `cursor` (Dropbox)

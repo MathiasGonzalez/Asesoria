@@ -189,3 +189,42 @@ La Ley 18.331 permite transferir datos al exterior si el destino tiene "nivel ad
 | URCDP — Unidad Reguladora | urcdp.gub.uy | Datos personales, Ley 18.331 |
 | UAFIU — Unidad de Información y Análisis Financiero | uafiu.gub.uy | Prevención de lavado de activos |
 | IMPO — Información y Publicaciones Oficiales | impo.com.uy | Texto completo de leyes y decretos |
+
+---
+
+## Checklist de cumplimiento
+
+### Ley 18.331 (URCDP) — Datos personales
+- [x] PII Sanitization (CI, RUT, montos) antes de enviar a Workers AI
+- [x] Datos personales no persisten en logs ni en vectores
+- [x] Sesiones con TTL revocables server-side
+- [ ] `right to erasure`: `DELETE /api/companies/:id` borra R2 + D1 + Vectorize (Fase 1)
+- [ ] Audit log de accesos a datos personales implementado (Fase 1)
+- [ ] Política de privacidad con cláusula de transferencia a Cloudflare redactada
+
+### Art. 47 Código Tributario — Secreto tributario
+- [x] PII sanitization activa en todas las consultas al LLM
+- [x] Tenant isolation en endpoints — datos de un tenant no accesibles por otro
+- [ ] Hardening completo de `tenant_id` en todos los modelos (Fase 1)
+- [ ] Audit log de accesos a información fiscal implementado (Fase 1)
+
+### Datos financieros — Cifrado en reposo
+- [ ] Número de cuenta bancaria cifrado con AES-256-GCM (Fase 4A)
+- [ ] Tokens OAuth cifrados con AES-256-GCM (Fase 2)
+- [ ] Certificado digital DGI (`cfe_configs.certificado_b64`) cifrado en reposo (Fase 3)
+- [ ] Cookies de portales DGI/BPS cifradas con AES-256-GCM (Fase 3 - DGI/BPS portal)
+
+### Ley 19.574 (UAFIU) — Anti-lavado
+- [ ] Alertas automáticas para transacciones >USD 10.000 implementadas (Fase 4D)
+- [ ] Feature flag `aml_screening_enabled` disponible para activación por tenant
+- [ ] Proceso interno de reporte UAFIU documentado
+
+### BCU — Preparación Open Banking
+- [ ] Interfaz `OpenBankingConnector` abstracta implementada (Fase 4C)
+- [ ] Arquitectura de seguridad documentada para auditoría
+- [ ] Proceso de registro BCU como AISP preparado para cuando el marco esté vigente
+- [ ] Política de consentimiento con expiración de 90 días diseñada
+
+### Retención de documentos
+- [ ] Política de retención mínima de 10 años para documentos fiscales implementada en R2
+- [ ] Expiración automática desactivada para períodos cerrados recientes

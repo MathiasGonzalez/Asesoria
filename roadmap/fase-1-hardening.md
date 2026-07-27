@@ -181,3 +181,40 @@ const results = await env.VECTORIZE.query(embedding, {
 | Ley 18.331 Art. 13 (deber de secreto) | Audit log de todos los accesos a datos personales |
 | Art. 47 Código Tributario | Filtros tenant impiden que información fiscal cruce entre clientes |
 | BCU Circular 2352 (banca futura) | Prerequisito de trazabilidad para operar como proveedor de servicios financieros |
+
+---
+
+## Checklist de implementación
+
+### Paso 1.1 — Aislamiento tenant_id
+- [ ] Auditar todas las tablas de negocio: verificar presencia de `tenant_id`
+- [ ] Migración `migrations/0014_tenant_hardening.sql`: agregar índices compuestos `(tenant_id, *)` faltantes
+- [ ] Helper `assertTenantOwnership(db, tenantId, table, resourceId)` creado en `src/middleware/tenant.ts`
+- [ ] Middleware Hono extendido: inyecta `tenant_id` desde sesión y llama `assertTenantOwnership` en todos los endpoints con recursos por ID
+- [ ] Estructura de claves R2 migrada a `tenants/{tenantId}/companies/{companyId}/periods/{periodId}/{uuid}/{filename}`
+- [ ] Scripts de migración de claves R2 existentes a la nueva estructura ejecutados
+
+### Paso 1.2 — Audit Log
+- [ ] Migración `migrations/0015_audit_log.sql` aplicada
+- [ ] Helper `logAuditEvent(ctx, action, resourceType, resourceId, metadata?)` creado en `src/middleware/audit.ts`
+- [ ] Eventos instrumentados: `document.read`, `document.upload`, `analysis.run`, `reconciliation.run`, `user.revoke`, `report.generate`, `report.share`, `portal.access`
+- [ ] `GET /api/audit-log` con filtros (usuario, empresa, acción, rango de fechas) implementado
+- [ ] Endpoint protegido con `requireRole('admin')` o `requireRole('owner')`
+
+### Paso 1.3 — Cuotas de almacenamiento
+- [ ] Migración `migrations/0016_tenant_quotas.sql` aplicada
+- [ ] Verificación de cuota ejecutada antes de cada upload a R2
+- [ ] Actualización de `storage_bytes_used` en `tenant_quotas` tras cada upload exitoso
+- [ ] Feature flag `storage_quota_enabled` creado (desactivado por defecto)
+- [ ] Barra de uso de almacenamiento visible para `owner`/`admin` en settings
+
+### Paso 1.4 — Aislamiento corpus Vectorize
+- [ ] Ingestión de documentos de empresa agrega metadata `{ tenant_id, company_id, doc_type: 'company' }`
+- [ ] Documentos normativos etiquetados con `{ doc_type: 'normativa', public: true }`
+- [ ] Todas las búsquedas Vectorize de empresa aplican filtro `{ tenant_id: ctx.tenantId }` o `{ doc_type: 'normativa' }`
+- [ ] Test: consulta de un tenant no recupera embeddings de otro tenant
+
+### Paso 1.5 — Lifecycle de sesiones y OTPs
+- [ ] Cloudflare Queue job para limpiar sesiones expiradas y OTPs vencidos periódicamente
+- [ ] Límite de 3 OTPs activos por email a la vez
+- [ ] Intentos fallidos de OTP registrados en `audit_log` para detección de fuerza bruta

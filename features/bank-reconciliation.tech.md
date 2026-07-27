@@ -109,3 +109,15 @@ Transacciones con `confianza_ia < 0.70` se marcan como `desconocido` y requieren
 ## Feature flag
 
 `bank_reconciliation_enabled` — protege todos los endpoints `/api/bank/*`.
+
+## Checklist de implementación técnica
+
+- [ ] Migración `migrations/0013_bank.sql` aplicada
+- [ ] FluentReport Container disponible para PDF de conciliación
+- [ ] `src/routes/bank.ts` creado con todos los endpoints
+- [ ] `src/services/bank-parser.ts` creado con detectores automáticos de banco
+- [ ] `src/services/bank-categorizer.ts` creado con llamadas a Workers AI
+- [ ] `src/services/bank-reconciler.ts` creado con algoritmo de matching contra CFEs
+- [ ] Feature flag `bank_reconciliation_enabled` creado y protegiendo endpoints
+- [ ] Binding `AI` en `wrangler.jsonc` (para categorización)
+- [ ] Binding `REPORT_CONTAINER` en `wrangler.jsonc` (para PDF)

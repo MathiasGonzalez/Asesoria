@@ -125,3 +125,41 @@ Al evaluar qué feature desarrollar a continuación, se consideran:
 3. **Diferenciación**: ¿está disponible en competidores directos (Conta1, Defontana, Alegra)?
 4. **Viabilidad técnica**: ¿el stack actual (Cloudflare Workers, D1, R2, Workers AI) lo soporta sin rediseño?
 5. **Compliance**: ¿introduce riesgos legales (ley 18.331, secreto tributario)?
+
+---
+
+## Checklist de progreso por fase
+
+### Fase 1 — Fundaciones (implementado)
+- [x] OTP Auth + Multi-tenant
+- [x] Contextual RAG
+- [x] Hybrid Search
+- [x] AI Grounded Answers
+- [x] PII Sanitization
+- [x] Document Ingestion
+- [x] Document Storage (R2)
+- [x] Tax Analysis
+- [x] Company Profiles
+- [x] Fiscal Calendar
+- [x] Feature Flags
+- [x] Rate Limiting
+- [x] Public/Private Web
+
+### Fase 2 — Colaboración y personas (obligatorio)
+- [ ] Equipos y Roles Multi-usuario
+- [ ] Portal del Cliente
+- [ ] Simulador IRPF + Calculadoras
+- [ ] Notificaciones Inteligentes
+
+### Fase 3 — Operaciones contables (obligatorio)
+- [ ] Integración e-Factura / CFE
+- [ ] Liquidación de Sueldos (Payroll)
+- [ ] Conciliación Bancaria
+- [ ] Automatización Portales DGI/BPS
+
+### Fase 4+ — Expansión (backlog obligatorio)
+Ver `roadmap/README.md` para el detalle de las fases de expansión.
+- [ ] Hardening de tenant y fundaciones (roadmap/fase-1-hardening.md)
+- [ ] Document Hub con OAuth externo (roadmap/fase-2-document-hub.md)
+- [ ] Agentes IA especializados (roadmap/fase-3-agentes-especializados.md)
+- [ ] Capa bancaria y preparación fintech (roadmap/fase-4-openbanking.md)

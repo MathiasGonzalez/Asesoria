@@ -60,3 +60,11 @@ La validación del **dígito verificador** (algoritmo DGI) se implementa en Fase
 ## Integración con Tax Analysis
 
 El `company_id` en `tax_periods` se resuelve a los datos completos de la empresa al construir el prompt de consolidación IA. El servicio `tax-consolidation.ts` hace un JOIN implícito antes de llamar a Workers AI.
+
+## Checklist de implementación técnica
+
+- [x] Migración `migrations/0006_companies.sql` aplicada
+- [x] `src/routes/companies.ts` creado con CRUD completo
+- [x] `src/utils/rut.ts` creado con `normalizeRut()` y `validateRut()`
+- [x] Binding `DB` en `wrangler.jsonc`
+- [ ] Validación del dígito verificador RUT (algoritmo DGI) — pendiente

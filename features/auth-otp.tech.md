@@ -43,3 +43,12 @@ CREATE TABLE sessions (id TEXT PRIMARY KEY, user_id TEXT, tenant_id TEXT, create
 - Las sesiones tienen TTL de 24 h; `expires_at` se evalúa en el middleware.
 - El OTP se invalida tras el primer uso o al solicitar uno nuevo.
 - El campo `role` en `users` es extensible para la feature `multi-user-teams`.
+
+## Checklist de implementación técnica
+
+- [x] Migración `migrations/0001_auth.sql` aplicada
+- [x] `src/routes/auth.ts` creado con los 3 endpoints
+- [x] `src/middleware/auth.ts` creado y aplicado en Hono
+- [x] `src/services/email.ts` creado con abstracción Email_Send / Resend fallback
+- [x] Bindings `DB`, `EMAIL_SEND` en `wrangler.jsonc`
+- [x] Worker Secrets `EMAIL_FROM`, `EMAIL_API_KEY` configurados en prod y develop

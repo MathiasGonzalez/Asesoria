@@ -127,3 +127,45 @@ usando el corpus normativo BPS/DGI ya ingresado.
 - Integración directa con portal SUNA de BPS vía API
 - Histórico de escalas para re-liquidar períodos pasados
 - Notificación automática al empleado con su recibo vía email
+
+## Checklist de implementación
+
+### Prerequisito
+- [ ] Repositorio `MathiasGonzalez/FluentReport` desplegado como Cloudflare Container
+- [ ] Binding `REPORT_CONTAINER` configurado en `wrangler.jsonc`
+
+### Base de datos
+- [ ] Tabla `employees` creada con índices `(tenant_id, company_id)`
+- [ ] Tabla `payroll_periods` creada con estado `draft | calculated | closed`
+- [ ] Tabla `payroll_items` creada con todos los campos de cálculo y `detalle_json` para auditoría
+
+### Backend
+- [ ] `GET /api/payroll/employees` — lista empleados por empresa
+- [ ] `POST /api/payroll/employees` — crea empleado con validación de CI y categoría BPS
+- [ ] `PUT /api/payroll/employees/:id` — actualiza datos del empleado
+- [ ] `DELETE /api/payroll/employees/:id` — baja lógica (`activo = 0`)
+- [ ] `POST /api/payroll/periods` — crea período de liquidación
+- [ ] `POST /api/payroll/periods/:id/calculate` — ejecuta cálculo para todos los empleados activos
+- [ ] `GET /api/payroll/periods/:id/items` — lista items liquidados
+- [ ] `GET /api/payroll/periods/:id/items/:empId/pdf` — genera recibo PDF via FluentReport
+- [ ] `GET /api/payroll/periods/:id/suna` — genera archivo SUNA para BPS
+- [ ] Cálculo de IRPF Cat.1 por tramos BPC implementado con escala vigente
+- [ ] Cálculo de aportes BPS (jubilación, FONASA, FRL, seguro desempleo) implementado
+- [ ] `src/config/tax-tables.ts` con BPC vigente y escalas IRPF Cat.1 actualizadas
+
+### Frontend
+- [ ] `/app/empleados` — ABM de empleados por empresa
+- [ ] `/app/sueldos` — lista de períodos de liquidación con estado y acciones
+- [ ] `/app/sueldos/:id` — detalle de período con tabla de items y botón de descarga de recibos
+
+### Validación
+- [ ] UC-070: liquidación de empleados de empresa con descarga de recibos PDF
+- [ ] UC-071: desglose correcto para empleado con sueldo $70.000 + complemento $15.000
+- [ ] UC-072: IA asiste con consultas sobre escalas IRPF y BPS usando corpus RAG
+- [ ] UC-073: archivo SUNA generado correctamente para el período
+- [ ] UC-074: cálculo IRPF para empleado con doble empleo funciona correctamente
+
+### Pendiente (v2)
+- [ ] Liquidación de aguinaldo y licencia
+- [ ] Gestión de ausencias vinculada a liquidación
+- [ ] Alta/baja en BPS: asistencia para formularios SUNA

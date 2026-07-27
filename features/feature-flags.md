@@ -51,3 +51,21 @@ CREATE TABLE feature_flags (
   UNIQUE(tenant_id, name)
 );
 ```
+
+## Checklist de implementación
+
+### Base de datos
+- [x] Tabla `feature_flags` creada con `UNIQUE(tenant_id, name)`
+- [x] Fila global (`tenant_id IS NULL`) con flags por defecto: `ai_search_enabled`, `document_ingestion_enabled`, `hybrid_search_enabled`, `otp_auth_enabled`
+- [x] Migración aplicada en local y remoto
+
+### Backend
+- [x] `GET /api/feature-flags` — devuelve todos los flags resueltos para el tenant autenticado
+- [x] Lógica de resolución: fila tenant-específica sobreescribe la global
+- [x] Middleware consume flags para proteger endpoints sensibles (ej: `ai_search_enabled`)
+
+### Validación
+- [x] Flag global `false` bloquea el endpoint para todos los tenants
+- [x] Override tenant-específico sobreescribe el global correctamente
+- [x] Flag inexistente para un tenant hereda el valor global por defecto
+- [x] Entornos `prod` y `develop` tienen flags independientes

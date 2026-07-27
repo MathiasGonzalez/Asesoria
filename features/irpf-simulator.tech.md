@@ -78,3 +78,11 @@ El archivo `src/config/tax-tables.ts` se actualiza manualmente en enero de cada 
 ## Rate limiting diferenciado
 
 Los endpoints de calculadoras usan el `RATE_LIMITER` estándar (20 req/IP/60s). No requieren rate limiter adicional dado que son stateless y de bajo costo computacional.
+
+## Checklist de implementación técnica
+
+- [ ] `src/services/tax-calculators.ts` creado con 4 funciones de cálculo
+- [ ] `src/config/tax-tables.ts` creado con parámetros fiscales vigentes (BPC, escalas, cuotas)
+- [ ] `src/routes/calculators.ts` creado con 5 endpoints públicos (sin auth)
+- [ ] Endpoints verificados: no requieren `Authorization` header
+- [ ] Páginas Astro en `web/pages/calculadoras/` creadas (públicas, sin `AppLayout`)

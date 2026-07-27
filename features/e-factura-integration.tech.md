@@ -170,3 +170,13 @@ Al cerrar el mes, el endpoint `POST /api/cfe/generate-iva-book` agrega automáti
 ## Feature flag
 
 `efactura_enabled` — protege todos los endpoints `/api/cfe/*` y la generación automática de libros IVA.
+
+## Checklist de implementación técnica
+
+- [ ] UruFactura Container desplegado (ver repositorio `MathiasGonzalez/UruFactura`)
+- [ ] Tablas `cfe_configs`, `cfe_documents` creadas con índices
+- [ ] `cfe_configs.certificado_b64` cifrado con AES-256-GCM antes de persistir
+- [ ] `src/routes/cfe.ts` creado con todos los endpoints
+- [ ] Binding `URUFACTURA_CONTAINER` (Durable Object) en `wrangler.jsonc`
+- [ ] Binding `REPORT_CONTAINER` (FluentReport) en `wrangler.jsonc` para generación de PDF de CFE
+- [ ] Feature flag `cfe_enabled` creado y protegiendo todos los endpoints

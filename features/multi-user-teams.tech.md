@@ -99,3 +99,14 @@ const filter = user.role === 'accountant'
 ## Feature flag
 
 `teams_enabled` — cuando está deshabilitado, todos los usuarios actúan como `owner` (compatibilidad con tenants de un solo usuario).
+
+## Checklist de implementación técnica
+
+- [ ] Migración para agregar `role` a `users`: `ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'accountant'`
+- [ ] Tabla `user_company_assignments` creada
+- [ ] Tabla `audit_log` creada con índices
+- [ ] `src/routes/team.ts` creado con endpoints de gestión de equipo
+- [ ] `src/routes/audit.ts` creado con `GET /api/audit-log`
+- [ ] Middleware `src/middleware/auth.ts` extendido: carga `role` y `assignedCompanies` en contexto
+- [ ] Helper `requireRole(minRole)` implementado en `src/middleware/auth.ts`
+- [ ] `requireRole` aplicado a todos los endpoints existentes según matriz de permisos

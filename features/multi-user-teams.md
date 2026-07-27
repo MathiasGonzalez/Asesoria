@@ -110,3 +110,34 @@ app.post('/api/portal/share', requireRole('senior'), async (c) => { ... })
 - Límite de clientes activos por plan de suscripción (billing feature gate)
 - SSO corporativo vía Cloudflare Access (ZT) para estudios grandes
 - Roles personalizados con permisos ad-hoc configurables por el admin
+
+## Checklist de implementación
+
+### Base de datos
+- [ ] Migración: `ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'accountant'`
+- [ ] Tabla `user_company_assignments` creada con índices
+- [ ] Tabla `audit_log` creada con índices `(tenant_id, created_at DESC)` y `(user_id, created_at DESC)`
+
+### Backend
+- [ ] `GET /api/team/members` — lista usuarios del tenant con su rol
+- [ ] `POST /api/team/invite` — invita nuevo miembro (envía OTP de bienvenida)
+- [ ] `PUT /api/team/members/:id/role` — cambia rol (solo `admin`/`owner`)
+- [ ] `DELETE /api/team/members/:id` — revoca acceso e invalida sesiones activas
+- [ ] `GET /api/team/members/:id/assignments` — lista empresas asignadas
+- [ ] `POST /api/team/members/:id/assign` — asigna empresa a contador
+- [ ] `DELETE /api/team/members/:id/assign/:companyId` — desasigna empresa
+- [ ] `GET /api/audit-log` — consulta log (solo `admin`/`owner`, con filtros)
+- [ ] Middleware extendido: carga `user.role` y `user.assignedCompanies` en contexto Hono
+- [ ] Helper `requireRole(minRole)` implementado y usado en endpoints existentes
+- [ ] Acceso a empresa de `accountant` limitado a `assignedCompanies`
+
+### Frontend
+- [ ] `/app/equipo` — lista de miembros del equipo con badges de rol y acciones
+- [ ] `/app/equipo/log` — log de auditoría filtrable por usuario, acción y fecha
+
+### Validación
+- [ ] UC-100: auxiliar solo ve clientes asignados, no todos
+- [ ] UC-101: auxiliar no puede cerrar período ni compartir informe
+- [ ] UC-102: admin ve log de auditoría completo
+- [ ] UC-103: revocar acceso invalida sesiones activas inmediatamente
+- [ ] UC-104: cliente del portal solo ve su empresa

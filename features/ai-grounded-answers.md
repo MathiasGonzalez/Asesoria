@@ -53,3 +53,21 @@ GET /api/search?q={consulta}
 - El contexto recuperado se incluye en el prompt (Contextual RAG).
 - El modelo no tiene acceso a internet ni a datos fuera del contexto provisto.
 - Las respuestas son auditables: el fragmento legislativo fuente siempre se puede trazar.
+
+## Checklist de implementación
+
+### Backend
+- [x] Prompt del sistema con instrucciones de grounding estricto implementado
+- [x] Generación con `@cf/qwen/qwq-32b` usando el contexto RAG recuperado
+- [x] Respuesta incluye `originalQuery`, `sanitizedQuery`, `response`, `latencyMs`
+- [x] Modelo instruido para citar fuentes y rechazar respuestas fuera del corpus
+
+### Infraestructura
+- [x] Binding `AI` en `wrangler.jsonc`
+
+### Validación
+- [x] UC-017: respuesta cita textualmente artículo y decreto con enlace
+- [x] UC-018: respuesta honesta cuando la consulta está fuera del corpus
+- [x] UC-019: campo `latencyMs` presente en la respuesta
+- [x] UC-020: campo `sanitizedQuery` refleja la anonimización aplicada
+- [x] Ninguna respuesta inventada sin fuente en el corpus verificado

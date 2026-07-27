@@ -108,3 +108,43 @@ Al ejecutar `/api/cfe/generate-iva-book?month=3&year=2025&company_id=...`:
 - Facturación recurrente (suscripciones mensuales automatizadas)
 - Portal de facturas públicas para que receptores descarguen sus CFEs sin login
 - Soporte multi-moneda (USD, EUR) con tipo de cambio BCU automático
+
+## Checklist de implementación
+
+### Prerequisito
+- [ ] Repositorio `MathiasGonzalez/UruFactura` desplegado como Cloudflare Container (Durable Object por empresa)
+- [ ] Binding `URUFACTURA_CONTAINER` configurado en `wrangler.jsonc`
+
+### Base de datos
+- [ ] Tabla `cfe_configs` creada (con `certificado_b64` cifrado en reposo)
+- [ ] Tabla `cfe_documents` creada con índices por `(tenant_id, company_id, fecha_emision)`
+
+### Backend
+- [ ] `POST /api/cfe/config` — configura credenciales DGI para una empresa (certificado cifrado)
+- [ ] `POST /api/cfe/emit` — valida, firma y envía CFE a DGI via UruFactura Container
+- [ ] `GET /api/cfe/documents` — lista CFEs emitidos/recibidos del tenant
+- [ ] `GET /api/cfe/documents/:id/pdf` — genera representación impresa PDF via FluentReport
+- [ ] `GET /api/cfe/documents/:id/xml` — descarga XML original del CFE
+- [ ] `POST /api/cfe/documents/:id/annul` — solicita anulación ante DGI
+- [ ] `POST /api/cfe/import-inbox` — importa CFEs recibidos del buzón DGI (XML)
+- [ ] `POST /api/cfe/generate-iva-book` — genera libro IVA del mes e ingesta en `tax_periods`
+- [ ] Validación de RUT del receptor antes de enviar a DGI
+- [ ] Alerta antes del envío si el IVA calculado no coincide con el monto total
+- [ ] Tipos de CFE soportados: e-Factura (111), e-Ticket (101), exportación (112), e-Remito, e-Resguardo, Nota Crédito
+
+### Infraestructura
+- [ ] UruFactura Container desplegado y en estado `running`
+- [ ] FluentReport Container disponible para generación de PDF de CFE
+
+### Frontend
+- [ ] `/app/facturacion` — lista de CFEs con filtros por tipo, estado y período
+- [ ] `/app/facturacion/nueva` — formulario de emisión de CFE
+- [ ] `/app/facturacion/config` — configuración de credenciales DGI por empresa
+
+### Validación
+- [ ] UC-080: emisión de e-Factura retorna XML firmado con CAE de DGI
+- [ ] UC-081: libro IVA Ventas generado automáticamente al cerrar el mes
+- [ ] UC-082: CFE de proveedor importado y clasificado en libro IVA Compras
+- [ ] UC-083: estudio emite CFE en nombre de cliente con sus credenciales DGI
+- [ ] UC-084: alerta disparada al detectar IVA mal calculado antes de enviar
+- [ ] UC-085: e-Ticket con tasa 0 emitido correctamente para empresa exportadora

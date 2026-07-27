@@ -53,3 +53,26 @@ const allIds = Array.from(new Set([...semIds, ...ftsIds]));
 - **Dimensiones:** 768 (modelo bge-base-en-v1.5)
 - **Métrica:** cosine similarity
 - **Metadatos almacenados:** `document_id`, `source`
+
+## Checklist de implementación
+
+### Base de datos
+- [x] Tabla `document_chunks_fts` (FTS5 virtual) creada
+- [x] Trigger `after_chunk_insert` manteniendo índice FTS5 actualizado
+- [x] Trigger `after_chunk_delete` eliminando del índice FTS5 al borrar chunks
+
+### Backend
+- [x] Búsqueda semántica via `env.VECTORIZE.query()` con `topK: 3`
+- [x] Búsqueda léxica via D1 FTS5 `MATCH` con límite de 3 resultados
+- [x] Merge y deduplicación de IDs de ambos resultados
+- [x] Fetch de chunks completos desde D1 después del merge
+
+### Infraestructura
+- [x] Índice Vectorize `advisor-uy-index` creado (768 dims, cosine)
+- [x] Binding `VECTORIZE` en `wrangler.jsonc`
+
+### Validación
+- [x] UC-009: búsqueda semántica recupera fragmentos con vocabulario diferente
+- [x] UC-010: búsqueda léxica recupera artículos y decretos citados exactamente
+- [x] UC-011: merge sin duplicados confirmado
+- [x] UC-012: FTS5 actúa como fallback cuando Vectorize no encuentra resultados

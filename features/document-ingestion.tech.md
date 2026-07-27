@@ -55,3 +55,11 @@ La ingestión está protegida por el flag `document_ingestion_enabled`. Si está
 ## Acceso
 
 Solo usuarios con rol `admin` u `owner` pueden llamar a este endpoint. El middleware verifica el rol antes de ejecutar la ingestión.
+
+## Checklist de implementación técnica
+
+- [x] `POST /api/ingest` implementado en `src/routes/ingest.ts`
+- [x] Chunking por ventanas de 500 chars
+- [x] Contextualización por chunk con `@cf/meta/llama-3-8b-instruct`
+- [x] Upsert en Vectorize con metadatos `document_id`, `source`
+- [x] Bindings `DB`, `VECTORIZE`, `AI` en `wrangler.jsonc`

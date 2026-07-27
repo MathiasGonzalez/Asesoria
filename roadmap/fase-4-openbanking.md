@@ -267,3 +267,40 @@ Una vez que Adviser maneja cuentas bancarias y tiene relación con BCU, el sigui
 ```
 
 Mientras tanto: **importación manual CSV/OFX + conciliación IA** resuelve el 80% del problema hoy.
+
+---
+
+## Checklist de implementación
+
+### Etapa 4A — Cuentas bancarias y extractos manuales
+- [ ] Migración `migrations/0013_bank.sql` aplicada (ver también `features/bank-reconciliation.tech.md`)
+- [ ] Columnas fintech agregadas a `bank_accounts`: `iban`, `tipo`, `saldo_conocido`, `saldo_fecha`, `source`, `connection_id`
+- [ ] `src/services/bank-crypto.ts` — cifrado de números de cuenta (AES-256-GCM)
+- [ ] `src/services/bank-parser.ts` — detectores automáticos de banco por estructura del CSV (BROU, Itaú, Santander, Scotiabank, OFX)
+- [ ] Número de cuenta cifrado antes de persistir en D1
+- [ ] Algoritmo de matching CFEs-transacciones: monto ±1%, fecha ±5 días, RUT en descripción
+
+### Etapa 4B — Dashboard de Tesorería
+- [ ] `GET /api/treasury/summary` — saldos consolidados por empresa (todas las cuentas)
+- [ ] `GET /api/treasury/cashflow` — flujo de caja mensual desde extractos importados
+- [ ] `GET /api/treasury/projection` — proyección a 3 meses (histórico + vencimientos conocidos)
+- [ ] `/app/tesoreria` — vista consolidada de saldos
+- [ ] `/app/tesoreria/flujo` — gráfico de ingresos vs egresos por mes
+- [ ] `/app/tesoreria/proyeccion` — proyección de caja a 3 meses
+
+### Etapa 4C — Abstracción Open Banking
+- [ ] `src/services/banking/connector.ts` — interfaz `OpenBankingConnector` implementada
+- [ ] Migración `migrations/0019_openbanking.sql` aplicada (tabla `openbanking_connections`)
+- [ ] Columnas `consent_id` y `consent_expiry` presentes en `openbanking_connections`
+- [ ] Proceso de registro BCU como AISP iniciado (cuando el marco regulatorio esté publicado)
+
+### Etapa 4D — Compliance AML (UAFIU)
+- [ ] `src/services/aml-screening.ts` con detección de señales AML via Workers AI
+- [ ] Transacciones >USD 10.000 automáticamente marcadas para revisión
+- [ ] Feature flag `aml_screening_enabled` creado (desactivado por defecto)
+- [ ] Alertas AML registradas en `audit_log` con nivel de riesgo
+
+### Documentación regulatoria
+- [ ] Política de privacidad actualizada con cláusula de datos financieros
+- [ ] Addendum de consentimiento para conexiones bancarias redactado
+- [ ] Arquitectura de seguridad documentada para futura auditoría BCU

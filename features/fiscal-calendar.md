@@ -54,3 +54,26 @@ Calendario visual de obligaciones tributarias en Uruguay para el año fiscal. Mu
 - Exportación al calendario de Google / iCal
 - Notificaciones push / email (D-5 antes de cada vencimiento)
 - Integración con los períodos de análisis para marcar obligaciones ya pagadas
+
+## Checklist de implementación
+
+### Backend
+- [x] Lógica de cálculo de vencimientos mensuales DGI (IVA, IRAE anticipo, IRPF Cat.2, Monotributo) implementada
+- [x] Lógica de cálculo de vencimientos BPS (SUNA, día 10 del mes siguiente) implementada
+- [x] Vencimientos anuales (IRAE 1101, IRPF 1102, IP) incluidos
+- [x] Codificación de colores por urgencia: rojo (≤1 día), naranja (≤7 días), verde (>7 días)
+- [x] Cálculo dinámico por año seleccionado
+
+### Frontend
+- [x] `/app/calendario` — vista de calendario con lista de vencimientos del mes actual y leyenda de colores
+
+### Validación
+- [x] UC-060: IVA urgente en rojo, BPS vencido en rojo, obligaciones futuras en verde
+- [x] UC-061: IRAE anual (Formulario 1101) aparece en abril del año siguiente
+- [x] UC-062: fechas calculadas dinámicamente según año seleccionado
+
+### Pendiente (v2)
+- [ ] Filtrado por empresa y ajuste de vencimiento según dígito de RUT
+- [ ] Exportación a Google Calendar / iCal
+- [ ] Notificaciones push/email D-5 (ver `smart-notifications.md`)
+- [ ] Integración con períodos de análisis para marcar obligaciones ya pagadas

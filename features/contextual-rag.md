@@ -53,3 +53,29 @@ Query sanitizada
 | Modelo contexto | `@cf/meta/llama-3-8b-instruct` | Genera el resumen contextual |
 | Modelo embedding | `@cf/baai/bge-base-en-v1.5` | Genera vectores (768 dims) |
 | Modelo respuesta | `@cf/qwen/qwq-32b` | Genera la respuesta final |
+
+## Checklist de implementación
+
+### Base de datos
+- [x] Tablas `documents` y `document_chunks` creadas con índices
+- [x] Tabla FTS5 `document_chunks_fts` con triggers `after_chunk_insert` y `after_chunk_delete`
+- [x] Índice Vectorize `advisor-uy-index` creado (768 dims, cosine) en prod y develop
+
+### Backend
+- [x] `POST /api/ingest` — pipeline completo: chunking → contextualización IA → embedding → upsert Vectorize
+- [x] `GET /api/search?q=` — búsqueda híbrida (Vectorize + FTS5) → generación grounded
+- [x] `src/services/rag.ts` con `ingestDocument()` y `searchNormative()`
+- [x] Chunking por ventanas de 500 chars implementado
+- [x] Contextualización por `@cf/meta/llama-3-8b-instruct` en ingestión
+- [x] Embedding con `@cf/baai/bge-base-en-v1.5` (768 dims)
+- [x] Generación de respuesta con `@cf/qwen/qwq-32b`
+
+### Infraestructura
+- [x] Binding `VECTORIZE` configurado en `wrangler.jsonc`
+- [x] Binding `AI` configurado en `wrangler.jsonc`
+
+### Validación
+- [x] UC-005: recuperación contextual con fuente citada
+- [x] UC-006: ingestión de nuevo decreto con contextualización por chunk
+- [x] UC-007: respuesta fundamentada únicamente en contexto recuperado
+- [x] UC-008: respuesta honesta cuando la consulta no está cubierta en el corpus

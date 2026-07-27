@@ -310,3 +310,53 @@ type AgentResponse = {
 | `src/agents/types.ts` | `AgentResponse`, `ActionProposal`, `Tool` types |
 | `wrangler.jsonc` | Bindings DO para cada agente, Queues, KV |
 | `web/pages/app/asistente.astro` | UI de chat con el orquestador |
+
+---
+
+## Checklist de implementación
+
+### Prerequisito
+- [ ] Fase 1 (hardening) completada — tenant isolation y audit log en producción
+- [ ] Workers AI con soporte de function calling / tool use habilitado en el account
+
+### Paso 3.1 — Agente Tributario
+- [ ] `src/agents/TaxAgent.ts` implementado como Durable Object con bucle de tool use
+- [ ] Tools implementadas: `get_period_documents`, `get_cfe_summary`, `query_normativa`, `get_previous_periods`
+- [ ] System prompt del Agente Tributario con guardrails de citas y no-elusión
+- [ ] Binding DO `TAX_AGENT` en `wrangler.jsonc`
+
+### Paso 3.2 — Agente Payroll
+- [ ] `src/agents/PayrollAgent.ts` implementado como Durable Object
+- [ ] Tools implementadas: `get_bpc_vigente`, `calculate_irpf_cat1`, `get_payroll_history`, `query_normativa`
+- [ ] Binding DO `PAYROLL_AGENT` en `wrangler.jsonc`
+
+### Paso 3.3 — Agente de Conciliación Bancaria
+- [ ] `src/agents/BankAgent.ts` implementado
+- [ ] Categorización en lote de extracto completo con Workers AI
+- [ ] Matching CFEs-transacciones implementado con algoritmo monto ±1% + fecha ±5 días
+- [ ] Memoria de patrones aprendidos en Cloudflare KV: `bank_patterns:{tenantId}:{companyId}`
+- [ ] Binding `KV_BANK_PATTERNS` en `wrangler.jsonc`
+
+### Paso 3.4 — Agente de Compliance
+- [ ] `src/agents/ComplianceAgent.ts` implementado con historial de conversación por sesión
+- [ ] Due diligence de proveedor por RUT (consulta DGI) implementado
+- [ ] Alertas proactivas de vencimientos próximos (D-5) desde el agente
+
+### Paso 3.5 — Agente de Documentos
+- [ ] `src/agents/DocumentAgent.ts` con clasificación automática de tipo de documento
+- [ ] `src/services/document-classifier.ts` usando `@cf/meta/llama-3.1-8b-instruct`
+- [ ] Extracción de campos estructurados de facturas (RUT, monto, IVA, fecha)
+- [ ] Detección de documentos faltantes según historial del cliente
+
+### Paso 3.6 — Orquestador
+- [ ] `src/agents/Orchestrator.ts` con intent detection por LLM
+- [ ] Routing correcto a: `tax | payroll | bank | compliance | documents | general`
+- [ ] `src/agents/types.ts` con tipos `AgentResponse`, `ActionProposal`, `Tool`
+
+### Paso 3.7 — Guardrails y revisión humana
+- [ ] Ningún agente ejecuta acciones irreversibles sin devolver `action_proposal` primero
+- [ ] Frontend muestra `action_proposal` con botón de confirmación explícita por rol
+- [ ] Todas las acciones ejecutadas vía propuesta aprobada se registran en `audit_log`
+
+### Frontend
+- [ ] `/app/asistente` — UI de chat con el orquestador, historial por sesión y acciones propuestas

@@ -127,3 +127,35 @@ npm run db:migrate:remote
 - Soporte para Google Drive con OAuth (acceso a documentos privados)
 - Cuota de almacenamiento por usuario / tenant
 - Expiración automática de archivos de períodos cerrados
+
+## Checklist de implementación
+
+### Base de datos
+- [x] Migración `migrations/0007_r2_documents.sql` aplicada (agrega `r2_key`, `mime_type`, `file_size`, `source`, `source_url` a `tax_documents`)
+
+### Infraestructura
+- [x] Bucket R2 `adviser-documents` creado en producción
+- [x] Bucket R2 `adviser-documents-develop` creado en develop
+- [x] Binding `DOCUMENTS_BUCKET` en `wrangler.jsonc` (marcado como opcional para dev local)
+
+### Backend
+- [x] `POST /api/tax/periods/:id/upload` — acepta multipart, extrae texto para tipos texto, guarda binarios en R2
+- [x] `POST /api/tax/periods/:id/import-gdoc` — importa Google Docs/Sheets públicos via export URL
+- [x] `GET /api/tax/periods/:id/documents/:docId/download` — descarga original desde R2
+- [x] `DELETE /api/tax/periods/:id/documents/:docId` — borra doc de D1 y archivo de R2 en background
+- [x] `src/services/storage.ts` con abstracción R2: `put()`, `get()`, `delete()`
+- [x] Estructura de claves R2: `tax/{userId}/{periodId}/{uuid}/{filename}`
+- [x] Límite de 10 MB por archivo enforceado
+- [x] Texto truncado a 8.000 chars con nota al final
+
+### Validación
+- [x] UC-040: PDF de texto extraído automáticamente a `content`
+- [x] UC-041: importación de Google Sheets público como CSV
+- [x] UC-042: descarga del archivo original desde R2
+- [x] UC-043: eliminación de documento borra archivo R2 sin bloquear respuesta
+
+### Pendiente (v2)
+- [ ] OCR automático para PDFs escaneados con Workers AI
+- [ ] Google Drive con OAuth (acceso a documentos privados) — ver `roadmap/fase-2-document-hub.md`
+- [ ] Cuota de almacenamiento por tenant
+- [ ] Expiración automática de archivos de períodos cerrados

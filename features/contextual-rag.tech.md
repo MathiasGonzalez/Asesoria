@@ -53,3 +53,11 @@ npx wrangler vectorize create advisor-uy-index --dimensions=1024 --metric=cosine
 ```
 
 Si se migra desde `bge-base-en-v1.5` (768 dims), recrear el índice y re-ingestar todos los documentos.
+
+## Checklist de implementación técnica
+
+- [x] Migración `migrations/0002_rag.sql` aplicada (tablas + FTS5 + triggers)
+- [x] Índice Vectorize `advisor-uy-index` creado (1024 dims, cosine) en prod y develop
+- [x] `src/services/rag.ts` creado con `ingestDocument()` y `searchNormative()`
+- [x] `src/services/anonymizer.ts` integrado en el pipeline de búsqueda
+- [x] Bindings `DB`, `VECTORIZE`, `AI` en `wrangler.jsonc`
